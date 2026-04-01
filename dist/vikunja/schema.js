@@ -1,8 +1,13 @@
-import { z } from 'zod/v4';
-// Common schemas that can be reused across different entities
-export const HexColorSchema = z.string().max(7).startsWith('#');
+import { z } from 'zod';
+// Vikunja returns "0001-01-01T00:00:00Z" for unset dates — treat as absent
+const VIKUNJA_NULL_DATE = '0001-01-01T00:00:00Z';
+export const DateTimeSchema = z
+    .string()
+    .datetime({ offset: true })
+    .optional()
+    .transform(val => (val === VIKUNJA_NULL_DATE ? undefined : val));
+export const HexColorSchema = z.string().max(7).startsWith('#').optional();
 export const IdentifierSchema = z.string().min(0).max(10);
-export const DateTimeSchema = z.iso.datetime();
 export const RightsSchema = z.number().int().min(0).max(2); // 0: RO, 1: RW, 2: Admin
 export const RelationKindSchema = z.enum([
     'unknown',
@@ -20,14 +25,14 @@ export const RelationKindSchema = z.enum([
 ]);
 export const UserSchema = z.object({
     created: DateTimeSchema,
-    email: z.string(),
+    email: z.string().optional(),
     id: z.number(),
-    name: z.string(),
+    name: z.string().optional(),
     updated: DateTimeSchema,
     username: z.string(),
 });
 export const LabelSchema = z.object({
-    description: z.string(),
+    description: z.string().optional(),
     hex_color: HexColorSchema,
     id: z.number(),
     title: z.string(),

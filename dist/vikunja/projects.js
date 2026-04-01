@@ -1,4 +1,4 @@
-import { z } from 'zod/v4';
+import { z } from 'zod';
 import { serviceInstance, wrapRequest } from './common.js';
 import { UserSchema } from './schema.js';
 const ProjectSchema = z.object({
@@ -14,24 +14,12 @@ const ProjectSchema = z.object({
     position: z.number().optional(),
     title: z.string(),
 });
-const listProjects = async () => wrapRequest(serviceInstance.get('/projects'));
+const listProjects = async (page = 1, perPage = 50) => wrapRequest(serviceInstance.get('/projects', {
+    params: { page, per_page: perPage },
+}));
 const getProject = async (projectId) => wrapRequest(serviceInstance.get(`/projects/${projectId}`));
 const createProject = async (projectData) => wrapRequest(serviceInstance.put('/projects', projectData));
-const updateProject = async (projectId, projectData) => {
-    // First get the current project data
-    const currentProject = await getProject(projectId);
-    if (currentProject.isError) {
-        return currentProject;
-    }
-    // Merge the current project data with the updates
-    const updatedProject = {
-        ...currentProject.data,
-        ...projectData,
-        id: projectId, // Ensure ID is preserved
-    };
-    // Send the complete updated project
-    return wrapRequest(serviceInstance.post(`/projects/${projectId}`, updatedProject));
-};
+const updateProject = async (projectId, projectData) => wrapRequest(serviceInstance.post(`/projects/${projectId}`, projectData));
 const deleteProject = async (projectId) => wrapRequest(serviceInstance.delete(`/projects/${projectId}`));
 const projects = {
     listProjects,
@@ -47,7 +35,10 @@ export const toolDefinitions = [
         description: 'List all projects',
         inputSchema: {
             type: 'object',
-            properties: {},
+            properties: {
+                page: { type: 'integer', description: 'Page number (default: 1)' },
+                per_page: { type: 'integer', description: 'Results per page, max 50 (default: 50)' },
+            },
             required: [],
         },
     },
@@ -191,8 +182,9 @@ export const toolDefinitions = [
     },
 ];
 export const handlers = {
-    list_projects: async (_) => {
-        const response = await listProjects();
+    list_projects: async (request) => {
+        const { page, per_page } = request.params.arguments || {};
+        const response = await listProjects(typeof page === 'number' ? page : 1, typeof per_page === 'number' ? Math.min(per_page, 50) : 50);
         if (response.isError) {
             return {
                 isError: true,
