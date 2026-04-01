@@ -52,7 +52,7 @@ export type Task = TaskInput & {
 
 const listAllTasks = async (page = 1, perPage = 50) =>
   wrapRequest(
-    serviceInstance.get<Array<Task>>('/tasks/all', {
+    serviceInstance.get<Array<Task>>('/tasks', {
       params: { page, per_page: perPage },
     }),
   );

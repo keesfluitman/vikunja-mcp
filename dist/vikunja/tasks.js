@@ -22,7 +22,7 @@ const TaskInputSchema = z.object({
     labels: z.array(z.object({ id: z.number() })).optional(),
     reminders: z.array(z.unknown()).optional(),
 });
-const listAllTasks = async (page = 1, perPage = 50) => wrapRequest(serviceInstance.get('/tasks/all', {
+const listAllTasks = async (page = 1, perPage = 50) => wrapRequest(serviceInstance.get('/tasks', {
     params: { page, per_page: perPage },
 }));
 const listProjectTasks = async (projectId, page = 1, perPage = 50) => wrapRequest(serviceInstance.get(`/projects/${projectId}/tasks`, {
@@ -70,7 +70,10 @@ export const toolDefinitions = [
             type: 'object',
             properties: {
                 page: { type: 'integer', description: 'Page number (default: 1)' },
-                per_page: { type: 'integer', description: 'Results per page, max 50 (default: 50)' },
+                per_page: {
+                    type: 'integer',
+                    description: 'Results per page, max 50 (default: 50)',
+                },
             },
             required: [],
         },
@@ -83,7 +86,10 @@ export const toolDefinitions = [
             properties: {
                 projectId: { type: 'integer', description: 'The ID of the project' },
                 page: { type: 'integer', description: 'Page number (default: 1)' },
-                per_page: { type: 'integer', description: 'Results per page, max 50 (default: 50)' },
+                per_page: {
+                    type: 'integer',
+                    description: 'Results per page, max 50 (default: 50)',
+                },
             },
             required: ['projectId'],
         },
@@ -124,12 +130,20 @@ export const toolDefinitions = [
                         repeat_mode: { type: 'integer', enum: [0, 1, 2] },
                         assignees: {
                             type: 'array',
-                            items: { type: 'object', properties: { id: { type: 'integer' } }, required: ['id'] },
+                            items: {
+                                type: 'object',
+                                properties: { id: { type: 'integer' } },
+                                required: ['id'],
+                            },
                             description: 'List of assignees by user ID',
                         },
                         labels: {
                             type: 'array',
-                            items: { type: 'object', properties: { id: { type: 'integer' } }, required: ['id'] },
+                            items: {
+                                type: 'object',
+                                properties: { id: { type: 'integer' } },
+                                required: ['id'],
+                            },
                             description: 'List of labels by label ID',
                         },
                         reminders: { type: 'array', items: { type: 'object' } },
@@ -165,11 +179,19 @@ export const toolDefinitions = [
                         repeat_mode: { type: 'integer', enum: [0, 1, 2] },
                         assignees: {
                             type: 'array',
-                            items: { type: 'object', properties: { id: { type: 'integer' } }, required: ['id'] },
+                            items: {
+                                type: 'object',
+                                properties: { id: { type: 'integer' } },
+                                required: ['id'],
+                            },
                         },
                         labels: {
                             type: 'array',
-                            items: { type: 'object', properties: { id: { type: 'integer' } }, required: ['id'] },
+                            items: {
+                                type: 'object',
+                                properties: { id: { type: 'integer' } },
+                                required: ['id'],
+                            },
                         },
                         reminders: { type: 'array', items: { type: 'object' } },
                     },
@@ -196,10 +218,26 @@ export const toolDefinitions = [
             type: 'object',
             properties: {
                 taskId: { type: 'integer', description: 'The ID of the task' },
-                otherTaskId: { type: 'integer', description: 'The ID of the other task' },
+                otherTaskId: {
+                    type: 'integer',
+                    description: 'The ID of the other task',
+                },
                 relationKind: {
                     type: 'string',
-                    enum: ['unknown', 'subtask', 'parenttask', 'related', 'duplicateof', 'duplicates', 'blocking', 'blocked', 'precedes', 'follows', 'copiedfrom', 'copiedto'],
+                    enum: [
+                        'unknown',
+                        'subtask',
+                        'parenttask',
+                        'related',
+                        'duplicateof',
+                        'duplicates',
+                        'blocking',
+                        'blocked',
+                        'precedes',
+                        'follows',
+                        'copiedfrom',
+                        'copiedto',
+                    ],
                 },
             },
             required: ['taskId', 'otherTaskId', 'relationKind'],
@@ -214,9 +252,25 @@ export const toolDefinitions = [
                 taskId: { type: 'integer', description: 'The ID of the task' },
                 kind: {
                     type: 'string',
-                    enum: ['unknown', 'subtask', 'parenttask', 'related', 'duplicateof', 'duplicates', 'blocking', 'blocked', 'precedes', 'follows', 'copiedfrom', 'copiedto'],
+                    enum: [
+                        'unknown',
+                        'subtask',
+                        'parenttask',
+                        'related',
+                        'duplicateof',
+                        'duplicates',
+                        'blocking',
+                        'blocked',
+                        'precedes',
+                        'follows',
+                        'copiedfrom',
+                        'copiedto',
+                    ],
                 },
-                otherTaskId: { type: 'integer', description: 'The ID of the other task' },
+                otherTaskId: {
+                    type: 'integer',
+                    description: 'The ID of the other task',
+                },
             },
             required: ['taskId', 'kind', 'otherTaskId'],
         },
@@ -287,7 +341,10 @@ export const toolDefinitions = [
             type: 'object',
             properties: {
                 taskId: { type: 'integer', description: 'The ID of the task' },
-                attachmentId: { type: 'integer', description: 'The ID of the attachment' },
+                attachmentId: {
+                    type: 'integer',
+                    description: 'The ID of the attachment',
+                },
             },
             required: ['taskId', 'attachmentId'],
         },
@@ -299,7 +356,10 @@ export const toolDefinitions = [
             type: 'object',
             properties: {
                 taskId: { type: 'integer', description: 'The ID of the task' },
-                attachmentId: { type: 'integer', description: 'The ID of the attachment' },
+                attachmentId: {
+                    type: 'integer',
+                    description: 'The ID of the attachment',
+                },
             },
             required: ['taskId', 'attachmentId'],
         },
@@ -310,7 +370,12 @@ export const handlers = {
         const { page, per_page } = request.params.arguments || {};
         const response = await listAllTasks(typeof page === 'number' ? page : 1, typeof per_page === 'number' ? Math.min(per_page, 50) : 50);
         if (response.isError) {
-            return { isError: true, content: [{ type: 'text', text: `Error retrieving tasks: ${response.error}` }] };
+            return {
+                isError: true,
+                content: [
+                    { type: 'text', text: `Error retrieving tasks: ${response.error}` },
+                ],
+            };
         }
         const tasks = response.data || [];
         if (tasks.length === 0) {
@@ -326,19 +391,37 @@ export const handlers = {
     list_project_tasks: async (request) => {
         const { projectId, page, per_page } = request.params.arguments || {};
         if (typeof projectId !== 'number') {
-            return { isError: true, content: [{ type: 'text', text: 'Invalid project ID' }] };
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid project ID' }],
+            };
         }
         const response = await listProjectTasks(projectId, typeof page === 'number' ? page : 1, typeof per_page === 'number' ? Math.min(per_page, 50) : 50);
         if (response.isError) {
-            return { isError: true, content: [{ type: 'text', text: `Error retrieving tasks for project ID ${projectId}: ${response.error}` }] };
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error retrieving tasks for project ID ${projectId}: ${response.error}`,
+                    },
+                ],
+            };
         }
         const tasks = response.data || [];
         if (tasks.length === 0) {
-            return { content: [{ type: 'text', text: `No tasks found for project ID ${projectId}` }] };
+            return {
+                content: [
+                    { type: 'text', text: `No tasks found for project ID ${projectId}` },
+                ],
+            };
         }
         return {
             content: [
-                { type: 'text', text: `Found ${tasks.length} task(s) for project ID ${projectId}` },
+                {
+                    type: 'text',
+                    text: `Found ${tasks.length} task(s) for project ID ${projectId}`,
+                },
                 { type: 'text', text: JSON.stringify(tasks, null, 2) },
             ],
         };
@@ -346,24 +429,48 @@ export const handlers = {
     get_task: async (request) => {
         const taskId = request.params.arguments?.taskId;
         if (typeof taskId !== 'number') {
-            return { isError: true, content: [{ type: 'text', text: 'Invalid task ID' }] };
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid task ID' }],
+            };
         }
         const response = await getTask(taskId);
         if (response.isError) {
-            return { isError: true, content: [{ type: 'text', text: `Error retrieving task ID ${taskId}: ${response.error}` }] };
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error retrieving task ID ${taskId}: ${response.error}`,
+                    },
+                ],
+            };
         }
-        return { content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }] };
+        return {
+            content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+        };
     },
     create_task: async (request) => {
         const { projectId, task: _task } = request.params.arguments || {};
         if (typeof projectId !== 'number') {
-            return { isError: true, content: [{ type: 'text', text: 'Invalid project ID' }] };
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid project ID' }],
+            };
         }
         try {
             const validatedTask = TaskInputSchema.parse(_task);
             const response = await createTask(projectId, validatedTask);
             if (response.isError) {
-                return { isError: true, content: [{ type: 'text', text: `Error creating task in project ID ${projectId}: ${response.error}` }] };
+                return {
+                    isError: true,
+                    content: [
+                        {
+                            type: 'text',
+                            text: `Error creating task in project ID ${projectId}: ${response.error}`,
+                        },
+                    ],
+                };
             }
             return {
                 content: [
@@ -373,22 +480,44 @@ export const handlers = {
             };
         }
         catch (error) {
-            return { isError: true, content: [{ type: 'text', text: `Validation error: ${error instanceof Error ? error.message : 'Unknown error'}` }] };
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Validation error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                    },
+                ],
+            };
         }
     },
     update_task: async (request) => {
         const { taskId, taskUpdates } = request.params.arguments || {};
         if (typeof taskId !== 'number') {
-            return { isError: true, content: [{ type: 'text', text: 'Invalid task ID' }] };
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid task ID' }],
+            };
         }
         if (!taskUpdates || typeof taskUpdates !== 'object') {
-            return { isError: true, content: [{ type: 'text', text: 'No update data provided' }] };
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'No update data provided' }],
+            };
         }
         try {
             const validatedUpdates = TaskInputSchema.partial().parse(taskUpdates);
             const response = await updateTask(taskId, validatedUpdates);
             if (response.isError) {
-                return { isError: true, content: [{ type: 'text', text: `Error updating task ID ${taskId}: ${response.error}` }] };
+                return {
+                    isError: true,
+                    content: [
+                        {
+                            type: 'text',
+                            text: `Error updating task ID ${taskId}: ${response.error}`,
+                        },
+                    ],
+                };
             }
             return {
                 content: [
@@ -398,123 +527,267 @@ export const handlers = {
             };
         }
         catch (error) {
-            return { isError: true, content: [{ type: 'text', text: `Validation error: ${error instanceof Error ? error.message : 'Unknown error'}` }] };
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Validation error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                    },
+                ],
+            };
         }
     },
     delete_task: async (request) => {
         const taskId = request.params.arguments?.taskId;
         if (typeof taskId !== 'number') {
-            return { isError: true, content: [{ type: 'text', text: 'Invalid task ID' }] };
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid task ID' }],
+            };
         }
         const response = await deleteTask(taskId);
         if (response.isError) {
-            return { isError: true, content: [{ type: 'text', text: `Error deleting task ID ${taskId}: ${response.error}` }] };
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error deleting task ID ${taskId}: ${response.error}`,
+                    },
+                ],
+            };
         }
-        return { content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }] };
+        return {
+            content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+        };
     },
     create_relation: async (request) => {
         const { taskId, otherTaskId, relationKind } = request.params.arguments || {};
         if (typeof taskId !== 'number' || typeof otherTaskId !== 'number') {
-            return { isError: true, content: [{ type: 'text', text: 'Invalid task ID or other task ID' }] };
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid task ID or other task ID' }],
+            };
         }
         if (!RelationKindSchema.safeParse(relationKind).success) {
-            return { isError: true, content: [{ type: 'text', text: 'Invalid relation kind' }] };
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid relation kind' }],
+            };
         }
         const response = await createRelation(taskId, otherTaskId, relationKind);
         if (response.isError) {
-            return { isError: true, content: [{ type: 'text', text: `Error creating relation between task ID ${taskId} and other task ID ${otherTaskId}: ${response.error}` }] };
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error creating relation between task ID ${taskId} and other task ID ${otherTaskId}: ${response.error}`,
+                    },
+                ],
+            };
         }
-        return { content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }] };
+        return {
+            content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+        };
     },
     delete_relation: async (request) => {
         const { taskId, kind, otherTaskId } = request.params.arguments || {};
         if (typeof taskId !== 'number' || typeof otherTaskId !== 'number') {
-            return { isError: true, content: [{ type: 'text', text: 'Invalid task ID or other task ID' }] };
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid task ID or other task ID' }],
+            };
         }
         if (!RelationKindSchema.safeParse(kind).success) {
-            return { isError: true, content: [{ type: 'text', text: 'Invalid relation kind' }] };
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid relation kind' }],
+            };
         }
         const response = await deleteRelation(taskId, kind, otherTaskId);
         if (response.isError) {
-            return { isError: true, content: [{ type: 'text', text: `Error deleting relation between task ID ${taskId} and other task ID ${otherTaskId}: ${response.error}` }] };
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error deleting relation between task ID ${taskId} and other task ID ${otherTaskId}: ${response.error}`,
+                    },
+                ],
+            };
         }
-        return { content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }] };
+        return {
+            content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+        };
     },
     get_task_comments: async (request) => {
         const taskId = request.params.arguments?.taskId;
         if (typeof taskId !== 'number') {
-            return { isError: true, content: [{ type: 'text', text: 'Invalid task ID' }] };
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid task ID' }],
+            };
         }
         const response = await getTaskComments(taskId);
         if (response.isError) {
-            return { isError: true, content: [{ type: 'text', text: `Error retrieving comments for task ID ${taskId}: ${response.error}` }] };
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error retrieving comments for task ID ${taskId}: ${response.error}`,
+                    },
+                ],
+            };
         }
-        return { content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }] };
+        return {
+            content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+        };
     },
     create_task_comment: async (request) => {
         const { taskId, comment } = request.params.arguments || {};
         if (typeof taskId !== 'number') {
-            return { isError: true, content: [{ type: 'text', text: 'Invalid task ID' }] };
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid task ID' }],
+            };
         }
         const response = await createTaskComment(taskId, comment);
         if (response.isError) {
-            return { isError: true, content: [{ type: 'text', text: `Error creating comment for task ID ${taskId}: ${response.error}` }] };
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error creating comment for task ID ${taskId}: ${response.error}`,
+                    },
+                ],
+            };
         }
-        return { content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }] };
+        return {
+            content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+        };
     },
     update_task_comment: async (request) => {
         const { taskId, commentId, comment } = request.params.arguments || {};
         if (typeof taskId !== 'number' || typeof commentId !== 'number') {
-            return { isError: true, content: [{ type: 'text', text: 'Invalid task ID or comment ID' }] };
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid task ID or comment ID' }],
+            };
         }
         const response = await updateTaskComment(taskId, commentId, comment);
         if (response.isError) {
-            return { isError: true, content: [{ type: 'text', text: `Error updating comment for task ID ${taskId}: ${response.error}` }] };
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error updating comment for task ID ${taskId}: ${response.error}`,
+                    },
+                ],
+            };
         }
-        return { content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }] };
+        return {
+            content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+        };
     },
     delete_task_comment: async (request) => {
         const { taskId, commentId } = request.params.arguments || {};
         if (typeof taskId !== 'number' || typeof commentId !== 'number') {
-            return { isError: true, content: [{ type: 'text', text: 'Invalid task ID or comment ID' }] };
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid task ID or comment ID' }],
+            };
         }
         const response = await deleteTaskComment(taskId, commentId);
         if (response.isError) {
-            return { isError: true, content: [{ type: 'text', text: `Error deleting comment for task ID ${taskId}: ${response.error}` }] };
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error deleting comment for task ID ${taskId}: ${response.error}`,
+                    },
+                ],
+            };
         }
-        return { content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }] };
+        return {
+            content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+        };
     },
     list_task_attachments: async (request) => {
         const taskId = request.params.arguments?.taskId;
         if (typeof taskId !== 'number') {
-            return { isError: true, content: [{ type: 'text', text: 'Invalid task ID' }] };
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid task ID' }],
+            };
         }
         const response = await listTaskAttachments(taskId);
         if (response.isError) {
-            return { isError: true, content: [{ type: 'text', text: `Error retrieving attachments for task ID ${taskId}: ${response.error}` }] };
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error retrieving attachments for task ID ${taskId}: ${response.error}`,
+                    },
+                ],
+            };
         }
-        return { content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }] };
+        return {
+            content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+        };
     },
     get_task_attachment: async (request) => {
         const { taskId, attachmentId } = request.params.arguments || {};
         if (typeof taskId !== 'number' || typeof attachmentId !== 'number') {
-            return { isError: true, content: [{ type: 'text', text: 'Invalid task ID or attachment ID' }] };
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid task ID or attachment ID' }],
+            };
         }
         const response = await getTaskAttachment(taskId, attachmentId);
         if (response.isError) {
-            return { isError: true, content: [{ type: 'text', text: `Error retrieving attachment for task ID ${taskId}: ${response.error}` }] };
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error retrieving attachment for task ID ${taskId}: ${response.error}`,
+                    },
+                ],
+            };
         }
-        return { content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }] };
+        return {
+            content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+        };
     },
     delete_task_attachment: async (request) => {
         const { taskId, attachmentId } = request.params.arguments || {};
         if (typeof taskId !== 'number' || typeof attachmentId !== 'number') {
-            return { isError: true, content: [{ type: 'text', text: 'Invalid task ID or attachment ID' }] };
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid task ID or attachment ID' }],
+            };
         }
         const response = await deleteTaskAttachment(taskId, attachmentId);
         if (response.isError) {
-            return { isError: true, content: [{ type: 'text', text: `Error deleting attachment for task ID ${taskId}: ${response.error}` }] };
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error deleting attachment for task ID ${taskId}: ${response.error}`,
+                    },
+                ],
+            };
         }
-        return { content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }] };
+        return {
+            content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+        };
     },
 };

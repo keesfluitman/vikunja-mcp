@@ -37,7 +37,10 @@ export const toolDefinitions = [
             type: 'object',
             properties: {
                 page: { type: 'integer', description: 'Page number (default: 1)' },
-                per_page: { type: 'integer', description: 'Results per page, max 50 (default: 50)' },
+                per_page: {
+                    type: 'integer',
+                    description: 'Results per page, max 50 (default: 50)',
+                },
             },
             required: [],
         },
