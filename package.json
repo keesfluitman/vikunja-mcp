@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit --skipLibCheck",
     "build": "tsc && chmod 755 dist/index.js",
     "precommit": "lint-staged && yarn typecheck",
-    "prepare": "echo 'skipping husky in CI/install'"
+    "prepare": ""
   },
   "files": [
     "dist"
@@ -37,7 +37,6 @@
     "@typescript-eslint/eslint-plugin": "^8.33.0",
     "@typescript-eslint/parser": "^8.33.0",
     "eslint": "^9.27.0",
-    "husky": "^9.1.7",
     "lint-staged": "^16.1.0",
     "prettier": "^3.5.3",
     "ts-node": "^10.9.2",
