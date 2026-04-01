@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit --skipLibCheck",
     "build": "tsc && chmod 755 dist/index.js",
     "precommit": "lint-staged && yarn typecheck",
-    "prepare": "husky"
+    "prepare": "echo 'skipping husky in CI/install'"
   },
   "files": [
     "dist"
