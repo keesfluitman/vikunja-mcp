@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// `Server` is JSDoc-deprecated in @modelcontextprotocol/sdk in favor of
+// `McpServer`, but the high-level API only accepts Zod schemas — our 32
+// tool definitions are hand-rolled JSON Schemas. The SDK note explicitly
+// permits `Server` "for advanced use cases" like ours. Revisit if/when
+// the SDK exposes a JSON-Schema path on McpServer.
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, } from '@modelcontextprotocol/sdk/types.js';
