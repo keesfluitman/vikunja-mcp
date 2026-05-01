@@ -1,59 +1,112 @@
 # vikunja-mcp
 
-Basic MCP server for Vikunja, maybe will add more features in the future
+Model Context Protocol server for [Vikunja](https://vikunja.io). Lets an LLM
+read, search, create, and modify your tasks, projects, labels, and saved
+filters via Vikunja's REST API.
 
-## Currently Supported
-- List projects
-- Get project by ID
-- List all tasks
-- List tasks in project
-- Add task to project
-    - N.B. - Only supports title, description, and done fields
-- Update task
-- Delete task
+This is a fork of [AnthonyUtt/vikunja-mcp](https://github.com/AnthonyUtt/vikunja-mcp)
+extended with the filter DSL, slim payloads, and labels/saved-filters/users
+modules.
+
+## Tools
+
+### Tasks
+- `list_all_tasks` — list across all projects with full filter/sort/search
+  support. Defaults to `done = false` sorted by most recently updated. Pass
+  `verbose: true` for the full task object (otherwise reactions, attachments,
+  created_by, related_tasks, etc. are stripped to keep context small).
+- `list_project_tasks` — same but scoped to one project.
+- `get_task`, `create_task`, `update_task`, `delete_task`
+- Relations: `create_relation`, `delete_relation`
+- Comments: `get_task_comments`, `create_task_comment`, `update_task_comment`,
+  `delete_task_comment`
+- Attachments (read-only): `list_task_attachments`, `get_task_attachment`,
+  `delete_task_attachment`
+
+### Projects
+- `list_projects`, `get_project`, `create_project`, `update_project`,
+  `delete_project`
+
+### Labels
+- `list_labels`, `get_label`, `create_label`, `update_label`, `delete_label`
+
+### Saved filters
+- `list_saved_filters`, `get_saved_filter`, `create_saved_filter`,
+  `update_saved_filter`, `delete_saved_filter`. Vikunja exposes saved filters
+  as virtual projects with negative IDs; `list_saved_filters` unwraps them and
+  returns the underlying `filter_id`.
+
+### Users
+- `search_users` — exact-username lookup (Vikunja's `/users` endpoint does
+  NOT match partials or emails).
+- `get_current_user` — the user owning the API token.
+
+## Filter DSL
+
+Both list-task tools accept a `filter` query string in Vikunja's filter DSL.
+A few examples:
+
+| What you want                  | `filter`                                    |
+| ------------------------------ | ------------------------------------------- |
+| Open tasks (default)           | `done = false`                              |
+| Overdue                        | `due_date < now && done = false`            |
+| Due in next 7 days             | `due_date < now+7d && done = false`         |
+| High priority                  | `priority >= 3`                             |
+| Tasks in a specific project    | `project = 20`                              |
+| Tasks with a label             | `labels in 1,2`                             |
+| Combined                       | `done = false && (priority >= 3 \|\| due_date < now+3d)` |
+
+Full reference: <https://vikunja.io/docs/filters>
 
 ## Installation
-Via `npx`:
+
+### Via npx
+
 ```json
 {
-    "mcpServers": {
-        // ... other config
-        "vikunja": {
-            "command": "npx",
-            "args": [
-                "-y",
-                "vikunja-mcp"
-            ],
-            "env": [
-                "VIKUNJA_API_BASE": "https://app.vikunja.cloud",
-                "VIKUNJA_API_TOKEN": "<your_token_here>"
-            ]
-        }
+  "mcpServers": {
+    "vikunja": {
+      "command": "npx",
+      "args": ["-y", "@simpelekees/vikunja-mcp"],
+      "env": {
+        "VIKUNJA_API_BASE": "https://your.vikunja.host",
+        "VIKUNJA_API_TOKEN": "tk_..."
+      }
     }
+  }
 }
 ```
 
-Or local build:
+### Local build
+
 ```bash
-git clone https://github.com/AnthonyUtt/vikunja-mcp && cd vikunja-mcp
+git clone https://github.com/keesfluitman/vikunja-mcp && cd vikunja-mcp
 pnpm install
 pnpm build
 ```
-Then, in Claude config:
+
 ```json
 {
-    "mcpServers": {
-        // ... other config
-        "vikunja": {
-            "command": "node",
-            "args": [
-                "/path/to/dist/index.js"
-            ],
-            "env": [
-                "VIKUNJA_API_BASE": "https://app.vikunja.cloud",
-                "VIKUNJA_API_TOKEN": "<your_token_here>"
-            ]
-        }
+  "mcpServers": {
+    "vikunja": {
+      "command": "node",
+      "args": ["/path/to/vikunja-mcp/dist/index.js"],
+      "env": {
+        "VIKUNJA_API_BASE": "https://your.vikunja.host",
+        "VIKUNJA_API_TOKEN": "tk_..."
+      }
     }
+  }
 }
+```
+
+`VIKUNJA_API_TOKEN` is read at process start, so rotating the token requires
+restarting the MCP server (i.e. starting a new MCP client session).
+
+## Development
+
+```bash
+pnpm typecheck
+pnpm lint
+pnpm build       # writes dist/
 ```

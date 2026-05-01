@@ -1,4 +1,4 @@
-import { serviceInstance, wrapRequest } from './common.js';
+import { serviceInstance, wrapRequest, slimTask, slimList } from './common.js';
 import type { ToolHandler } from './common.js';
 import { z } from 'zod';
 import {
@@ -50,17 +50,56 @@ export type Task = TaskInput & {
   reactions: Record<string, unknown> | null;
 };
 
-const listAllTasks = async (page = 1, perPage = 50) =>
+// Vikunja query params shared by /tasks and /projects/{id}/tasks.
+// See https://vikunja.io/docs/filters for the filter DSL.
+export type TaskListParams = {
+  page?: number;
+  per_page?: number;
+  s?: string;
+  filter?: string;
+  sort_by?: string | string[];
+  order_by?: 'asc' | 'desc' | Array<'asc' | 'desc'>;
+  filter_include_nulls?: boolean;
+  filter_timezone?: string;
+  expand?: 'subtasks';
+};
+
+// Sensible defaults for LLM workflows: open tasks, most recently updated first.
+// Caller can override by passing any of these keys explicitly (including `filter: ''`
+// to disable the done filter). per_page is capped at 50 server-side.
+const applyTaskListDefaults = (p: TaskListParams): Record<string, unknown> => {
+  const params: Record<string, unknown> = {
+    page: p.page ?? 1,
+    per_page: Math.min(p.per_page ?? 50, 50),
+  };
+  // Only inject defaults when the caller did not pass the key at all. An
+  // explicit empty string for filter means "no filter" and is respected.
+  params.filter = p.filter !== undefined ? p.filter : 'done = false';
+  params.sort_by = p.sort_by ?? 'updated';
+  params.order_by = p.order_by ?? 'desc';
+  if (p.s !== undefined) params.s = p.s;
+  if (p.filter_include_nulls !== undefined)
+    params.filter_include_nulls = p.filter_include_nulls;
+  if (p.filter_timezone !== undefined)
+    params.filter_timezone = p.filter_timezone;
+  if (p.expand !== undefined) params.expand = p.expand;
+  return params;
+};
+
+const listAllTasks = async (params: TaskListParams = {}) =>
   wrapRequest(
     serviceInstance.get<Array<Task>>('/tasks', {
-      params: { page, per_page: perPage },
+      params: applyTaskListDefaults(params),
     }),
   );
 
-const listProjectTasks = async (projectId: number, page = 1, perPage = 50) =>
+const listProjectTasks = async (
+  projectId: number,
+  params: TaskListParams = {},
+) =>
   wrapRequest(
     serviceInstance.get<Array<Task>>(`/projects/${projectId}/tasks`, {
-      params: { page, per_page: perPage },
+      params: applyTaskListDefaults(params),
     }),
   );
 
@@ -150,7 +189,8 @@ export default {
 export const toolDefinitions = [
   {
     name: 'list_all_tasks',
-    description: 'List all tasks across all projects',
+    description:
+      'List tasks across all projects. Defaults to open tasks (done=false) sorted by most recently updated. Pass filter="" to disable the open-only default. Filter DSL: see https://vikunja.io/docs/filters — examples: "done = false", "due_date < now+7d", "priority >= 3", "labels in 1,2", "project = 20".',
     inputSchema: {
       type: 'object',
       properties: {
@@ -159,13 +199,53 @@ export const toolDefinitions = [
           type: 'integer',
           description: 'Results per page, max 50 (default: 50)',
         },
+        s: {
+          type: 'string',
+          description: 'Free-text search across task title/description',
+        },
+        filter: {
+          type: 'string',
+          description:
+            'Vikunja filter expression. Default: "done = false". Pass "" to remove the default and return all tasks.',
+        },
+        sort_by: {
+          type: 'string',
+          description:
+            'Sort field. Default: "updated". Common values: id, title, done, done_at, due_date, created, updated, priority, position.',
+        },
+        order_by: {
+          type: 'string',
+          enum: ['asc', 'desc'],
+          description: 'Sort direction (default: "desc")',
+        },
+        filter_include_nulls: {
+          type: 'boolean',
+          description: 'Include tasks where the filtered field is null',
+        },
+        filter_timezone: {
+          type: 'string',
+          description:
+            'IANA timezone for date math in filter (e.g. "Europe/Berlin")',
+        },
+        expand: {
+          type: 'string',
+          enum: ['subtasks'],
+          description:
+            'If "subtasks", returns top-level tasks plus all their subtasks',
+        },
+        verbose: {
+          type: 'boolean',
+          description:
+            'Return full task objects including reactions, attachments, created_by, related_tasks. Default false (slimmed payload).',
+        },
       },
       required: [],
     },
   },
   {
     name: 'list_project_tasks',
-    description: 'List all tasks for a specific project',
+    description:
+      'List tasks in a specific project. Same filter/sort/search semantics as list_all_tasks. Defaults to open tasks (done=false) sorted by most recently updated.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -175,17 +255,44 @@ export const toolDefinitions = [
           type: 'integer',
           description: 'Results per page, max 50 (default: 50)',
         },
+        s: { type: 'string', description: 'Free-text search' },
+        filter: {
+          type: 'string',
+          description:
+            'Vikunja filter expression. Default: "done = false". Pass "" to disable.',
+        },
+        sort_by: {
+          type: 'string',
+          description: 'Sort field. Default: "updated"',
+        },
+        order_by: {
+          type: 'string',
+          enum: ['asc', 'desc'],
+          description: 'Default: "desc"',
+        },
+        filter_include_nulls: { type: 'boolean' },
+        filter_timezone: { type: 'string' },
+        expand: { type: 'string', enum: ['subtasks'] },
+        verbose: {
+          type: 'boolean',
+          description: 'Return full task objects. Default false (slimmed).',
+        },
       },
       required: ['projectId'],
     },
   },
   {
     name: 'get_task',
-    description: 'Get a specific task by ID',
+    description:
+      'Get a specific task by ID. Returns slimmed payload by default; pass verbose=true for full object.',
     inputSchema: {
       type: 'object',
       properties: {
         taskId: { type: 'integer', description: 'The ID of the task' },
+        verbose: {
+          type: 'boolean',
+          description: 'Return full task object. Default false.',
+        },
       },
       required: ['taskId'],
     },
@@ -452,13 +559,31 @@ export const toolDefinitions = [
   },
 ];
 
+// Pluck the Vikunja list-query params from a tool-call args object. Drops
+// projectId and verbose (handler-only concerns) and ignores wrong types.
+const extractListParams = (args: Record<string, unknown>): TaskListParams => {
+  const out: TaskListParams = {};
+  if (typeof args.page === 'number') out.page = args.page;
+  if (typeof args.per_page === 'number') out.per_page = args.per_page;
+  if (typeof args.s === 'string') out.s = args.s;
+  if (typeof args.filter === 'string') out.filter = args.filter;
+  if (typeof args.sort_by === 'string' || Array.isArray(args.sort_by))
+    out.sort_by = args.sort_by as string | string[];
+  if (args.order_by === 'asc' || args.order_by === 'desc')
+    out.order_by = args.order_by;
+  if (typeof args.filter_include_nulls === 'boolean')
+    out.filter_include_nulls = args.filter_include_nulls;
+  if (typeof args.filter_timezone === 'string')
+    out.filter_timezone = args.filter_timezone;
+  if (args.expand === 'subtasks') out.expand = 'subtasks';
+  return out;
+};
+
 export const handlers: Record<string, ToolHandler> = {
   list_all_tasks: async request => {
-    const { page, per_page } = request.params.arguments || {};
-    const response = await listAllTasks(
-      typeof page === 'number' ? page : 1,
-      typeof per_page === 'number' ? Math.min(per_page, 50) : 50,
-    );
+    const args = (request.params.arguments || {}) as Record<string, unknown>;
+    const verbose = args.verbose === true;
+    const response = await listAllTasks(extractListParams(args));
 
     if (response.isError) {
       return {
@@ -474,16 +599,23 @@ export const handlers: Record<string, ToolHandler> = {
       return { content: [{ type: 'text', text: 'No tasks found' }] };
     }
 
+    const out = slimList(
+      tasks as unknown as Array<Record<string, unknown>>,
+      'task',
+      verbose,
+    );
     return {
       content: [
         { type: 'text', text: `Found ${tasks.length} task(s)` },
-        { type: 'text', text: JSON.stringify(tasks, null, 2) },
+        { type: 'text', text: JSON.stringify(out, null, 2) },
       ],
     };
   },
 
   list_project_tasks: async request => {
-    const { projectId, page, per_page } = request.params.arguments || {};
+    const args = (request.params.arguments || {}) as Record<string, unknown>;
+    const projectId = args.projectId;
+    const verbose = args.verbose === true;
     if (typeof projectId !== 'number') {
       return {
         isError: true,
@@ -491,11 +623,7 @@ export const handlers: Record<string, ToolHandler> = {
       };
     }
 
-    const response = await listProjectTasks(
-      projectId,
-      typeof page === 'number' ? page : 1,
-      typeof per_page === 'number' ? Math.min(per_page, 50) : 50,
-    );
+    const response = await listProjectTasks(projectId, extractListParams(args));
     if (response.isError) {
       return {
         isError: true,
@@ -517,19 +645,26 @@ export const handlers: Record<string, ToolHandler> = {
       };
     }
 
+    const out = slimList(
+      tasks as unknown as Array<Record<string, unknown>>,
+      'task',
+      verbose,
+    );
     return {
       content: [
         {
           type: 'text',
           text: `Found ${tasks.length} task(s) for project ID ${projectId}`,
         },
-        { type: 'text', text: JSON.stringify(tasks, null, 2) },
+        { type: 'text', text: JSON.stringify(out, null, 2) },
       ],
     };
   },
 
   get_task: async request => {
-    const taskId = request.params.arguments?.taskId;
+    const args = (request.params.arguments || {}) as Record<string, unknown>;
+    const taskId = args.taskId;
+    const verbose = args.verbose === true;
     if (typeof taskId !== 'number') {
       return {
         isError: true,
@@ -550,8 +685,12 @@ export const handlers: Record<string, ToolHandler> = {
       };
     }
 
+    const out = slimTask(
+      (response.data ?? {}) as unknown as Record<string, unknown>,
+      verbose,
+    );
     return {
-      content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+      content: [{ type: 'text', text: JSON.stringify(out, null, 2) }],
     };
   },
 

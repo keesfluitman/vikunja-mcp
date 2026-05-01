@@ -43,3 +43,59 @@ export const wrapRequest = async <T>(
 };
 
 export type ToolHandler = (request: CallToolRequest) => Promise<CallToolResult>;
+
+// Fields that bloat LLM context with no value for typical task workflows.
+// Stripped by default; pass verbose=true on a tool call to retain them.
+const TASK_STRIP_KEYS = [
+  'reactions',
+  'attachments',
+  'created_by',
+  'related_tasks',
+  'cover_image_attachment_id',
+  'position',
+  'index',
+  'reminders',
+  'hex_color',
+  'repeat_after',
+  'repeat_mode',
+] as const;
+
+const PROJECT_STRIP_KEYS = [
+  'background_blur_hash',
+  'background_information',
+  'subscription',
+  'views',
+  'owner',
+  'position',
+  'hex_color',
+] as const;
+
+const stripFields = <T extends Record<string, unknown>>(
+  obj: T,
+  keys: readonly string[],
+): Partial<T> => {
+  const out: Record<string, unknown> = { ...obj };
+  for (const k of keys) delete out[k];
+  return out as Partial<T>;
+};
+
+export const slimTask = <T extends Record<string, unknown>>(
+  task: T,
+  verbose = false,
+): Partial<T> | T => (verbose ? task : stripFields(task, TASK_STRIP_KEYS));
+
+export const slimProject = <T extends Record<string, unknown>>(
+  project: T,
+  verbose = false,
+): Partial<T> | T =>
+  verbose ? project : stripFields(project, PROJECT_STRIP_KEYS);
+
+export const slimList = <T extends Record<string, unknown>>(
+  items: T[],
+  kind: 'task' | 'project',
+  verbose = false,
+): Array<Partial<T> | T> => {
+  if (verbose) return items;
+  const keys = kind === 'task' ? TASK_STRIP_KEYS : PROJECT_STRIP_KEYS;
+  return items.map(item => stripFields(item, keys));
+};
