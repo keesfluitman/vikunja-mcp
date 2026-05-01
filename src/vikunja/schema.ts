@@ -8,7 +8,14 @@ export const DateTimeSchema = z
   .optional()
   .transform(val => (val === VIKUNJA_NULL_DATE ? undefined : val));
 
-export const HexColorSchema = z.string().max(7).startsWith('#').optional();
+// Vikunja's API is inconsistent about hex colors: project create/update
+// expects "#RRGGBB", but labels are stored without the leading "#" (e.g.
+// "dc2626"). Accept either form so the LLM doesn't have to memorize which is
+// which.
+export const HexColorSchema = z
+  .string()
+  .regex(/^#?[0-9A-Fa-f]{6}$/, 'Must be a 6-digit hex color, "#" optional')
+  .optional();
 export const IdentifierSchema = z.string().min(0).max(10);
 export const RightsSchema = z.number().int().min(0).max(2); // 0: RO, 1: RW, 2: Admin
 export const RelationKindSchema = z.enum([

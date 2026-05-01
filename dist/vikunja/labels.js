@@ -11,7 +11,9 @@ const listLabels = async (page = 1, perPage = 50, search) => wrapRequest(service
 }));
 const getLabel = async (labelId) => wrapRequest(serviceInstance.get(`/labels/${labelId}`));
 const createLabel = async (label) => wrapRequest(serviceInstance.put('/labels', label));
-const updateLabel = async (labelId, label) => wrapRequest(serviceInstance.put(`/labels/${labelId}`, label));
+// Swagger lists PUT for /labels/{id} but the server returns 405; the actual
+// update method is POST.
+const updateLabel = async (labelId, label) => wrapRequest(serviceInstance.post(`/labels/${labelId}`, label));
 const deleteLabel = async (labelId) => wrapRequest(serviceInstance.delete(`/labels/${labelId}`));
 export default {
     listLabels,

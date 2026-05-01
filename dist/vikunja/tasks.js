@@ -97,7 +97,10 @@ export const toolDefinitions = [
                     type: 'integer',
                     description: 'Results per page, max 50 (default: 50)',
                 },
-                s: { type: 'string', description: 'Free-text search across task title/description' },
+                s: {
+                    type: 'string',
+                    description: 'Free-text search across task title/description',
+                },
                 filter: {
                     type: 'string',
                     description: 'Vikunja filter expression. Default: "done = false". Pass "" to remove the default and return all tasks.',
@@ -149,8 +152,15 @@ export const toolDefinitions = [
                     type: 'string',
                     description: 'Vikunja filter expression. Default: "done = false". Pass "" to disable.',
                 },
-                sort_by: { type: 'string', description: 'Sort field. Default: "updated"' },
-                order_by: { type: 'string', enum: ['asc', 'desc'], description: 'Default: "desc"' },
+                sort_by: {
+                    type: 'string',
+                    description: 'Sort field. Default: "updated"',
+                },
+                order_by: {
+                    type: 'string',
+                    enum: ['asc', 'desc'],
+                    description: 'Default: "desc"',
+                },
                 filter_include_nulls: { type: 'boolean' },
                 filter_timezone: { type: 'string' },
                 expand: { type: 'string', enum: ['subtasks'] },

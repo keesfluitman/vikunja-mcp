@@ -57,7 +57,7 @@ const stripFields = (obj, keys) => {
     return out;
 };
 export const slimTask = (task, verbose = false) => (verbose ? task : stripFields(task, TASK_STRIP_KEYS));
-export const slimProject = (project, verbose = false) => (verbose ? project : stripFields(project, PROJECT_STRIP_KEYS));
+export const slimProject = (project, verbose = false) => verbose ? project : stripFields(project, PROJECT_STRIP_KEYS);
 export const slimList = (items, kind, verbose = false) => {
     if (verbose)
         return items;

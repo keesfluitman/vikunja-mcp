@@ -43,7 +43,7 @@ const FILTER_SHAPE_DESCRIPTION = 'Object containing query params: s (search), fi
 export const toolDefinitions = [
     {
         name: 'list_saved_filters',
-        description: 'List the user\'s saved filters. Vikunja exposes these as virtual projects with negative IDs; this tool unwraps them and returns the underlying filter_id you can pass to get_saved_filter.',
+        description: "List the user's saved filters. Vikunja exposes these as virtual projects with negative IDs; this tool unwraps them and returns the underlying filter_id you can pass to get_saved_filter.",
         inputSchema: { type: 'object', properties: {}, required: [] },
     },
     {

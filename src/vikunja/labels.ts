@@ -24,8 +24,10 @@ const getLabel = async (labelId: number) =>
 const createLabel = async (label: LabelInput) =>
   wrapRequest(serviceInstance.put<Label>('/labels', label));
 
+// Swagger lists PUT for /labels/{id} but the server returns 405; the actual
+// update method is POST.
 const updateLabel = async (labelId: number, label: Partial<LabelInput>) =>
-  wrapRequest(serviceInstance.put<Label>(`/labels/${labelId}`, label));
+  wrapRequest(serviceInstance.post<Label>(`/labels/${labelId}`, label));
 
 const deleteLabel = async (labelId: number) =>
   wrapRequest(serviceInstance.delete(`/labels/${labelId}`));
