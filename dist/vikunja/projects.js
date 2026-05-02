@@ -1,6 +1,19 @@
 import { z } from 'zod';
-import { serviceInstance, wrapRequest } from './common.js';
+import { serviceInstance, wrapRequest, mergeAndPost } from './common.js';
 import { UserSchema } from './schema.js';
+// Server-managed / endpoint-rejected fields stripped from the merged update
+// body. owner, views, and the background_* fields would either be ignored or
+// trigger "Invalid model" — see commit 3918d85 for the historical context.
+const PROJECT_UPDATE_STRIP_KEYS = [
+    'created',
+    'updated',
+    'owner',
+    'views',
+    'subscription',
+    'background_blur_hash',
+    'background_information',
+    'max_right',
+];
 const ProjectSchema = z.object({
     description: z.string().optional(),
     hex_color: z.string().max(7).startsWith('#').optional(),
@@ -19,7 +32,7 @@ const listProjects = async (page = 1, perPage = 50) => wrapRequest(serviceInstan
 }));
 const getProject = async (projectId) => wrapRequest(serviceInstance.get(`/projects/${projectId}`));
 const createProject = async (projectData) => wrapRequest(serviceInstance.put('/projects', projectData));
-const updateProject = async (projectId, projectData) => wrapRequest(serviceInstance.post(`/projects/${projectId}`, projectData));
+const updateProject = async (projectId, projectData) => mergeAndPost(`/projects/${projectId}`, projectData, PROJECT_UPDATE_STRIP_KEYS);
 const deleteProject = async (projectId) => wrapRequest(serviceInstance.delete(`/projects/${projectId}`));
 const projects = {
     listProjects,

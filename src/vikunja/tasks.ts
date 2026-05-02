@@ -1,5 +1,28 @@
-import { serviceInstance, wrapRequest, slimTask, slimList } from './common.js';
+import {
+  serviceInstance,
+  wrapRequest,
+  slimTask,
+  slimList,
+  mergeAndPost,
+} from './common.js';
 import type { ToolHandler } from './common.js';
+
+// Server-managed / endpoint-rejected fields stripped from the merged update
+// body. Vikunja's POST /tasks/{id} would otherwise either ignore these or
+// reject with "Invalid model" — labels/assignees/attachments live on their own
+// nested endpoints and reactions/related_tasks/created_by are read-only.
+const TASK_UPDATE_STRIP_KEYS = [
+  'created',
+  'updated',
+  'done_at',
+  'created_by',
+  'reactions',
+  'related_tasks',
+  'attachments',
+  'cover_image_attachment_id',
+  'index',
+  'subscription',
+] as const;
 import { z } from 'zod';
 import {
   DateTimeSchema,
@@ -110,7 +133,11 @@ const createTask = async (projectId: number, task: TaskInput) =>
   wrapRequest(serviceInstance.put<Task>(`/projects/${projectId}/tasks`, task));
 
 const updateTask = async (taskId: number, task: Partial<TaskInput>) =>
-  wrapRequest(serviceInstance.post<Task>(`/tasks/${taskId}`, task));
+  mergeAndPost<Task>(
+    `/tasks/${taskId}`,
+    task as Record<string, unknown>,
+    TASK_UPDATE_STRIP_KEYS,
+  );
 
 const deleteTask = async (taskId: number) =>
   wrapRequest(serviceInstance.delete(`/tasks/${taskId}`));

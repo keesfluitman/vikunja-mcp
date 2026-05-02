@@ -21,6 +21,9 @@ type Response<T> = {
   isError: boolean;
   error?: string;
 };
+
+export type ErrorResponse = { isError: true; error: string };
+
 export const wrapRequest = async <T>(
   request: Promise<AxiosResponse<T>>,
 ): Promise<Response<T>> => {
@@ -43,6 +46,27 @@ export const wrapRequest = async <T>(
 };
 
 export type ToolHandler = (request: CallToolRequest) => Promise<CallToolResult>;
+
+// Vikunja's POST /resource/{id} endpoints are full-replace, not partial merge:
+// any field omitted from the body is reset to its zero value (title -> "",
+// priority -> 0, parent_project_id -> 0, etc.). To get true partial-update
+// semantics we GET the current resource, overlay the caller's partial, strip
+// server-managed / endpoint-rejected fields, and POST the merged object.
+export const mergeAndPost = async <T>(
+  path: string,
+  partial: Record<string, unknown>,
+  stripKeys: readonly string[],
+): Promise<Response<T>> => {
+  const current = await wrapRequest(
+    serviceInstance.get<Record<string, unknown>>(path),
+  );
+  if (current.isError || !current.data) {
+    return current as Response<T>;
+  }
+  const merged: Record<string, unknown> = { ...current.data, ...partial };
+  for (const k of stripKeys) delete merged[k];
+  return wrapRequest(serviceInstance.post<T>(path, merged));
+};
 
 // Fields that bloat LLM context with no value for typical task workflows.
 // Stripped by default; pass verbose=true on a tool call to retain them.

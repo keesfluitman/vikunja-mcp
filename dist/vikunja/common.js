@@ -26,6 +26,21 @@ export const wrapRequest = async (request) => {
         };
     }
 };
+// Vikunja's POST /resource/{id} endpoints are full-replace, not partial merge:
+// any field omitted from the body is reset to its zero value (title -> "",
+// priority -> 0, parent_project_id -> 0, etc.). To get true partial-update
+// semantics we GET the current resource, overlay the caller's partial, strip
+// server-managed / endpoint-rejected fields, and POST the merged object.
+export const mergeAndPost = async (path, partial, stripKeys) => {
+    const current = await wrapRequest(serviceInstance.get(path));
+    if (current.isError || !current.data) {
+        return current;
+    }
+    const merged = { ...current.data, ...partial };
+    for (const k of stripKeys)
+        delete merged[k];
+    return wrapRequest(serviceInstance.post(path, merged));
+};
 // Fields that bloat LLM context with no value for typical task workflows.
 // Stripped by default; pass verbose=true on a tool call to retain them.
 const TASK_STRIP_KEYS = [

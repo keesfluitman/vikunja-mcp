@@ -1,4 +1,20 @@
-import { serviceInstance, wrapRequest, slimTask, slimList } from './common.js';
+import { serviceInstance, wrapRequest, slimTask, slimList, mergeAndPost, } from './common.js';
+// Server-managed / endpoint-rejected fields stripped from the merged update
+// body. Vikunja's POST /tasks/{id} would otherwise either ignore these or
+// reject with "Invalid model" — labels/assignees/attachments live on their own
+// nested endpoints and reactions/related_tasks/created_by are read-only.
+const TASK_UPDATE_STRIP_KEYS = [
+    'created',
+    'updated',
+    'done_at',
+    'created_by',
+    'reactions',
+    'related_tasks',
+    'attachments',
+    'cover_image_attachment_id',
+    'index',
+    'subscription',
+];
 import { z } from 'zod';
 import { DateTimeSchema, HexColorSchema, IdentifierSchema, RelationKindSchema, } from './schema.js';
 // Input schema for create/update — all fields optional except title (on create)
@@ -53,7 +69,7 @@ const listProjectTasks = async (projectId, params = {}) => wrapRequest(serviceIn
 }));
 const getTask = async (taskId) => wrapRequest(serviceInstance.get(`/tasks/${taskId}`));
 const createTask = async (projectId, task) => wrapRequest(serviceInstance.put(`/projects/${projectId}/tasks`, task));
-const updateTask = async (taskId, task) => wrapRequest(serviceInstance.post(`/tasks/${taskId}`, task));
+const updateTask = async (taskId, task) => mergeAndPost(`/tasks/${taskId}`, task, TASK_UPDATE_STRIP_KEYS);
 const deleteTask = async (taskId) => wrapRequest(serviceInstance.delete(`/tasks/${taskId}`));
 const createRelation = async (taskId, otherTaskId, relationKind) => wrapRequest(serviceInstance.put(`/tasks/${taskId}/relations`, {
     task_id: taskId,

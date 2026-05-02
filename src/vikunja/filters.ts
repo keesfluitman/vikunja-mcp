@@ -1,6 +1,8 @@
 import { z } from 'zod';
-import { serviceInstance, wrapRequest } from './common.js';
+import { serviceInstance, wrapRequest, mergeAndPost } from './common.js';
 import type { ToolHandler } from './common.js';
+
+const SAVED_FILTER_UPDATE_STRIP_KEYS = ['created', 'updated', 'owner'] as const;
 
 // A saved filter wraps the same query params accepted by GET /tasks.
 const FilterParamsSchema = z.object({
@@ -57,7 +59,11 @@ const updateSavedFilter = async (
   filterId: number,
   data: Partial<SavedFilterInput>,
 ) =>
-  wrapRequest(serviceInstance.post<SavedFilter>(`/filters/${filterId}`, data));
+  mergeAndPost<SavedFilter>(
+    `/filters/${filterId}`,
+    data as Record<string, unknown>,
+    SAVED_FILTER_UPDATE_STRIP_KEYS,
+  );
 
 const deleteSavedFilter = async (filterId: number) =>
   wrapRequest(serviceInstance.delete(`/filters/${filterId}`));

@@ -1,7 +1,9 @@
 import { z } from 'zod';
-import { serviceInstance, wrapRequest } from './common.js';
+import { serviceInstance, wrapRequest, mergeAndPost } from './common.js';
 import type { ToolHandler } from './common.js';
 import { HexColorSchema, type Label } from './schema.js';
+
+const LABEL_UPDATE_STRIP_KEYS = ['created', 'updated', 'created_by'] as const;
 
 const LabelInputSchema = z.object({
   title: z.string().optional(),
@@ -25,9 +27,14 @@ const createLabel = async (label: LabelInput) =>
   wrapRequest(serviceInstance.put<Label>('/labels', label));
 
 // Swagger lists PUT for /labels/{id} but the server returns 405; the actual
-// update method is POST.
+// update method is POST. POST is full-replace, so fetch-then-merge to keep the
+// fields the caller didn't pass.
 const updateLabel = async (labelId: number, label: Partial<LabelInput>) =>
-  wrapRequest(serviceInstance.post<Label>(`/labels/${labelId}`, label));
+  mergeAndPost<Label>(
+    `/labels/${labelId}`,
+    label as Record<string, unknown>,
+    LABEL_UPDATE_STRIP_KEYS,
+  );
 
 const deleteLabel = async (labelId: number) =>
   wrapRequest(serviceInstance.delete(`/labels/${labelId}`));
