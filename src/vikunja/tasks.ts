@@ -326,7 +326,8 @@ export const toolDefinitions = [
   },
   {
     name: 'create_task',
-    description: 'Create a new task in a project',
+    description:
+      'Create a new task in a project. Note: priority defaults to 0 (none) if not specified — set explicitly if you want low/medium/high/urgent (1–4).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -375,7 +376,8 @@ export const toolDefinitions = [
   },
   {
     name: 'update_task',
-    description: 'Update an existing task by ID',
+    description:
+      'Update an existing task by ID. WARNING: this is a full REPLACE, not a PATCH — any field omitted from taskUpdates is reset to its zero value (priority → 0, done → false, description → empty). To preserve fields, either include them all in taskUpdates, or call get_task first and merge. Known quirk: done_at may also reset to 0001-01-01 on subsequent updates even when done:true is sent correctly (server-side timestamp bug, unrelated).',
     inputSchema: {
       type: 'object',
       properties: {

@@ -1,10 +1,6 @@
 import { z } from 'zod';
 import { serviceInstance, wrapRequest, mergeAndPost } from './common.js';
-const SAVED_FILTER_UPDATE_STRIP_KEYS = [
-    'created',
-    'updated',
-    'owner',
-];
+const SAVED_FILTER_UPDATE_STRIP_KEYS = ['created', 'updated', 'owner'];
 // A saved filter wraps the same query params accepted by GET /tasks.
 const FilterParamsSchema = z.object({
     s: z.string().optional(),
