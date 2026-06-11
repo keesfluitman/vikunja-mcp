@@ -19,14 +19,19 @@ import users, {
   toolDefinitions as userToolDefinitions,
   handlers as userHandlers,
 } from './users.js';
+import kanban, {
+  toolDefinitions as kanbanToolDefinitions,
+  handlers as kanbanHandlers,
+} from './kanban.js';
 
-export { projects, tasks, labels, savedFilters, users };
+export { projects, tasks, labels, savedFilters, users, kanban };
 export const tools = [
   ...projectToolDefinitions,
   ...taskToolDefinitions,
   ...labelToolDefinitions,
   ...filterToolDefinitions,
   ...userToolDefinitions,
+  ...kanbanToolDefinitions,
 ];
 export const handlers: Record<string, ToolHandler> = {
   ...projectHandlers,
@@ -34,4 +39,5 @@ export const handlers: Record<string, ToolHandler> = {
   ...labelHandlers,
   ...filterHandlers,
   ...userHandlers,
+  ...kanbanHandlers,
 };

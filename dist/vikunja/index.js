@@ -3,13 +3,15 @@ import tasks, { toolDefinitions as taskToolDefinitions, handlers as taskHandlers
 import labels, { toolDefinitions as labelToolDefinitions, handlers as labelHandlers, } from './labels.js';
 import savedFilters, { toolDefinitions as filterToolDefinitions, handlers as filterHandlers, } from './filters.js';
 import users, { toolDefinitions as userToolDefinitions, handlers as userHandlers, } from './users.js';
-export { projects, tasks, labels, savedFilters, users };
+import kanban, { toolDefinitions as kanbanToolDefinitions, handlers as kanbanHandlers, } from './kanban.js';
+export { projects, tasks, labels, savedFilters, users, kanban };
 export const tools = [
     ...projectToolDefinitions,
     ...taskToolDefinitions,
     ...labelToolDefinitions,
     ...filterToolDefinitions,
     ...userToolDefinitions,
+    ...kanbanToolDefinitions,
 ];
 export const handlers = {
     ...projectHandlers,
@@ -17,4 +19,5 @@ export const handlers = {
     ...labelHandlers,
     ...filterHandlers,
     ...userHandlers,
+    ...kanbanHandlers,
 };

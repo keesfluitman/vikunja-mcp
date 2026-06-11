@@ -15,7 +15,9 @@ const compat = new FlatCompat({
 });
 
 export default defineConfig([
-  globalIgnores(['**/node_modules', '**/dist']),
+  // scripts/ holds dev-only Node tooling (live smoke tests) that isn't shipped
+  // and uses Node globals the library lint config disallows.
+  globalIgnores(['**/node_modules', '**/dist', 'scripts']),
   {
     extends: compat.extends(
       'eslint:recommended',

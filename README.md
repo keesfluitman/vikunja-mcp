@@ -17,6 +17,8 @@ modules.
   created_by, related_tasks, etc. are stripped to keep context small).
 - `list_project_tasks` — same but scoped to one project.
 - `get_task`, `create_task`, `update_task`, `delete_task`
+- `move_task` — move a task to a different project (preserves its other
+  fields; for moving between kanban columns use `move_task_to_bucket`).
 - Relations: `create_relation`, `delete_relation`
 - Comments: `get_task_comments`, `create_task_comment`, `update_task_comment`,
   `delete_task_comment`
@@ -26,6 +28,18 @@ modules.
 ### Projects
 - `list_projects`, `get_project`, `create_project`, `update_project`,
   `delete_project`
+
+### Kanban (views & buckets)
+Kanban lives under project *views*, not the project directly — a project has
+several views (list/gantt/table/kanban) and only the kanban view owns buckets.
+- `list_project_views` — discover a project's views and, for the kanban view,
+  its `default_bucket_id` (where new tasks land) and `done_bucket_id`.
+- `list_buckets`, `create_bucket`, `update_bucket`, `delete_bucket` — manage
+  the columns of a kanban view.
+- `move_task_to_bucket` — move a task into a bucket within a given view. This
+  is the correct way to move a task between columns; `update_task` with a
+  `bucket_id` is ambiguous across views. Dropping a task into the view's
+  `done_bucket_id` marks it done.
 
 ### Labels
 - `list_labels`, `get_label`, `create_label`, `update_label`, `delete_label`

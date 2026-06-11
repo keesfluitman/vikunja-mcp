@@ -71,6 +71,12 @@ const getTask = async (taskId) => wrapRequest(serviceInstance.get(`/tasks/${task
 const createTask = async (projectId, task) => wrapRequest(serviceInstance.put(`/projects/${projectId}/tasks`, task));
 const updateTask = async (taskId, task) => mergeAndPost(`/tasks/${taskId}`, task, TASK_UPDATE_STRIP_KEYS);
 const deleteTask = async (taskId) => wrapRequest(serviceInstance.delete(`/tasks/${taskId}`));
+// Move a task to a different project. Vikunja moves a task by POSTing it with a
+// changed project_id; we route through mergeAndPost so the rest of the task
+// (title, labels, dates, etc.) survives the full-replace POST. Kept as a
+// dedicated tool rather than a project_id field on update_task so the LLM can't
+// relocate a task by accident while editing other fields.
+const moveTask = async (taskId, projectId) => mergeAndPost(`/tasks/${taskId}`, { project_id: projectId }, TASK_UPDATE_STRIP_KEYS);
 const createRelation = async (taskId, otherTaskId, relationKind) => wrapRequest(serviceInstance.put(`/tasks/${taskId}/relations`, {
     task_id: taskId,
     other_task_id: otherTaskId,
@@ -91,6 +97,7 @@ export default {
     createTask,
     updateTask,
     deleteTask,
+    moveTask,
     createRelation,
     deleteRelation,
     getTaskComments,
@@ -307,6 +314,21 @@ export const toolDefinitions = [
                 taskId: { type: 'integer', description: 'The ID of the task' },
             },
             required: ['taskId'],
+        },
+    },
+    {
+        name: 'move_task',
+        description: 'Move a task to a different project. Preserves the task’s other fields. Use this for cross-project moves; for moving between kanban columns within a project, use move_task_to_bucket instead.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                taskId: { type: 'integer', description: 'The ID of the task to move' },
+                projectId: {
+                    type: 'integer',
+                    description: 'The ID of the destination project',
+                },
+            },
+            required: ['taskId', 'projectId'],
         },
     },
     {
@@ -690,6 +712,33 @@ export const handlers = {
         }
         return {
             content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+        };
+    },
+    move_task: async (request) => {
+        const { taskId, projectId } = request.params.arguments || {};
+        if (typeof taskId !== 'number' || typeof projectId !== 'number') {
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid task ID or project ID' }],
+            };
+        }
+        const response = await moveTask(taskId, projectId);
+        if (response.isError) {
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error moving task ID ${taskId} to project ID ${projectId}: ${response.error}`,
+                    },
+                ],
+            };
+        }
+        return {
+            content: [
+                { type: 'text', text: `Task ${taskId} moved to project ${projectId}:` },
+                { type: 'text', text: JSON.stringify(response.data, null, 2) },
+            ],
         };
     },
     create_relation: async (request) => {
