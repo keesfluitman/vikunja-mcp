@@ -207,6 +207,27 @@ const deleteTaskAttachment = async (taskId: number, attachmentId: number) =>
     serviceInstance.delete(`/tasks/${taskId}/attachments/${attachmentId}`),
   );
 
+// Assignees and labels each have dedicated attach/detach endpoints. Prefer
+// these over update_task's full-replace `assignees`/`labels` arrays: adding one
+// assignee shouldn't require re-sending (and risking clobbering) the rest.
+// Vikunja's verb convention: PUT to add, DELETE to remove. Not full-replace, so
+// no mergeAndPost needed.
+const addTaskAssignee = async (taskId: number, userId: number) =>
+  wrapRequest(
+    serviceInstance.put(`/tasks/${taskId}/assignees`, { user_id: userId }),
+  );
+
+const removeTaskAssignee = async (taskId: number, userId: number) =>
+  wrapRequest(serviceInstance.delete(`/tasks/${taskId}/assignees/${userId}`));
+
+const addTaskLabel = async (taskId: number, labelId: number) =>
+  wrapRequest(
+    serviceInstance.put(`/tasks/${taskId}/labels`, { label_id: labelId }),
+  );
+
+const removeTaskLabel = async (taskId: number, labelId: number) =>
+  wrapRequest(serviceInstance.delete(`/tasks/${taskId}/labels/${labelId}`));
+
 export default {
   listAllTasks,
   listProjectTasks,
@@ -224,6 +245,10 @@ export default {
   listTaskAttachments,
   getTaskAttachment,
   deleteTaskAttachment,
+  addTaskAssignee,
+  removeTaskAssignee,
+  addTaskLabel,
+  removeTaskLabel,
 };
 
 export const toolDefinitions = [
@@ -613,6 +638,68 @@ export const toolDefinitions = [
         },
       },
       required: ['taskId', 'attachmentId'],
+    },
+  },
+  {
+    name: 'add_task_assignee',
+    description:
+      'Assign a user to a task. Prefer this over update_task for adding an assignee — it touches only the assignee list and leaves the rest of the task untouched. Resolve the userId via search_users first.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'integer', description: 'The ID of the task' },
+        userId: {
+          type: 'integer',
+          description: 'The ID of the user to assign (from search_users)',
+        },
+      },
+      required: ['taskId', 'userId'],
+    },
+  },
+  {
+    name: 'remove_task_assignee',
+    description: 'Unassign a user from a task.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'integer', description: 'The ID of the task' },
+        userId: {
+          type: 'integer',
+          description: 'The ID of the user to unassign',
+        },
+      },
+      required: ['taskId', 'userId'],
+    },
+  },
+  {
+    name: 'add_task_label',
+    description:
+      'Attach a label to a task. Prefer this over update_task for adding a label — it touches only the label list and leaves the rest of the task untouched. Resolve the labelId via list_labels first.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'integer', description: 'The ID of the task' },
+        labelId: {
+          type: 'integer',
+          description: 'The ID of the label to attach (from list_labels)',
+        },
+      },
+      required: ['taskId', 'labelId'],
+    },
+  },
+  {
+    name: 'remove_task_label',
+    description: 'Detach a label from a task.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'integer', description: 'The ID of the task' },
+        labelId: {
+          type: 'integer',
+          description: 'The ID of the label to detach',
+        },
+      },
+      required: ['taskId', 'labelId'],
     },
   },
 ];
@@ -1175,6 +1262,122 @@ export const handlers: Record<string, ToolHandler> = {
 
     return {
       content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+    };
+  },
+
+  add_task_assignee: async request => {
+    const { taskId, userId } = request.params.arguments || {};
+    if (typeof taskId !== 'number' || typeof userId !== 'number') {
+      return {
+        isError: true,
+        content: [{ type: 'text', text: 'Invalid task ID or user ID' }],
+      };
+    }
+
+    const response = await addTaskAssignee(taskId, userId);
+    if (response.isError) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: `Error assigning user ${userId} to task ${taskId}: ${response.error}`,
+          },
+        ],
+      };
+    }
+
+    return {
+      content: [
+        { type: 'text', text: `User ${userId} assigned to task ${taskId}` },
+      ],
+    };
+  },
+
+  remove_task_assignee: async request => {
+    const { taskId, userId } = request.params.arguments || {};
+    if (typeof taskId !== 'number' || typeof userId !== 'number') {
+      return {
+        isError: true,
+        content: [{ type: 'text', text: 'Invalid task ID or user ID' }],
+      };
+    }
+
+    const response = await removeTaskAssignee(taskId, userId);
+    if (response.isError) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: `Error unassigning user ${userId} from task ${taskId}: ${response.error}`,
+          },
+        ],
+      };
+    }
+
+    return {
+      content: [
+        { type: 'text', text: `User ${userId} unassigned from task ${taskId}` },
+      ],
+    };
+  },
+
+  add_task_label: async request => {
+    const { taskId, labelId } = request.params.arguments || {};
+    if (typeof taskId !== 'number' || typeof labelId !== 'number') {
+      return {
+        isError: true,
+        content: [{ type: 'text', text: 'Invalid task ID or label ID' }],
+      };
+    }
+
+    const response = await addTaskLabel(taskId, labelId);
+    if (response.isError) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: `Error attaching label ${labelId} to task ${taskId}: ${response.error}`,
+          },
+        ],
+      };
+    }
+
+    return {
+      content: [
+        { type: 'text', text: `Label ${labelId} attached to task ${taskId}` },
+      ],
+    };
+  },
+
+  remove_task_label: async request => {
+    const { taskId, labelId } = request.params.arguments || {};
+    if (typeof taskId !== 'number' || typeof labelId !== 'number') {
+      return {
+        isError: true,
+        content: [{ type: 'text', text: 'Invalid task ID or label ID' }],
+      };
+    }
+
+    const response = await removeTaskLabel(taskId, labelId);
+    if (response.isError) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: `Error detaching label ${labelId} from task ${taskId}: ${response.error}`,
+          },
+        ],
+      };
+    }
+
+    return {
+      content: [
+        { type: 'text', text: `Label ${labelId} detached from task ${taskId}` },
+      ],
     };
   },
 };
