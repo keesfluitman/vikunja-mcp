@@ -1,2 +1,6 @@
 node_modules/
 .env
+
+# Internal dev notes — this repo is PUBLIC. llm-notes stay local and publish to
+# the Authentik-gated docsify hub via rsync (llm-notes.sh deploy), never to git.
+llm-notes/
