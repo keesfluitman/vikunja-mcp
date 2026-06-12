@@ -23,8 +23,16 @@ import kanban, {
   toolDefinitions as kanbanToolDefinitions,
   handlers as kanbanHandlers,
 } from './kanban.js';
+import teams, {
+  toolDefinitions as teamToolDefinitions,
+  handlers as teamHandlers,
+} from './teams.js';
+import sharing, {
+  toolDefinitions as sharingToolDefinitions,
+  handlers as sharingHandlers,
+} from './sharing.js';
 
-export { projects, tasks, labels, savedFilters, users, kanban };
+export { projects, tasks, labels, savedFilters, users, kanban, teams, sharing };
 export const tools = [
   ...projectToolDefinitions,
   ...taskToolDefinitions,
@@ -32,6 +40,8 @@ export const tools = [
   ...filterToolDefinitions,
   ...userToolDefinitions,
   ...kanbanToolDefinitions,
+  ...teamToolDefinitions,
+  ...sharingToolDefinitions,
 ];
 export const handlers: Record<string, ToolHandler> = {
   ...projectHandlers,
@@ -40,4 +50,6 @@ export const handlers: Record<string, ToolHandler> = {
   ...filterHandlers,
   ...userHandlers,
   ...kanbanHandlers,
+  ...teamHandlers,
+  ...sharingHandlers,
 };
