@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { serviceInstance, wrapRequest } from './common.js';
+import { serviceInstance, wrapRequest, mergeAndPost } from './common.js';
 import type { ToolHandler } from './common.js';
 
 // Kanban in Vikunja lives under project VIEWS, not the project directly. A
@@ -142,6 +142,46 @@ const moveTaskToBucket = async (
     ),
   );
 
+// View CRUD. v1 follows its usual convention here (create = PUT, update = POST)
+// — NOT the inverted verbs the v2/Huma API uses. A single-view GET exists, so
+// update routes through mergeAndPost to preserve the view's filter object and
+// bucket config when the caller only changes one field. `filter` is a
+// TaskCollection object ({ filter: "<DSL>", filter_include_nulls, ... }), and
+// `bucket_configuration` an array — both passed through as-is.
+const VIEW_UPDATE_STRIP_KEYS = ['created', 'updated'] as const;
+
+const ViewInputSchema = z.object({
+  title: z.string().optional(),
+  view_kind: z.enum(['list', 'gantt', 'table', 'kanban']).optional(),
+  filter: z.record(z.unknown()).optional(),
+  position: z.number().optional(),
+  bucket_configuration_mode: z.enum(['none', 'manual', 'filter']).optional(),
+  default_bucket_id: z.number().int().optional(),
+  done_bucket_id: z.number().int().optional(),
+  bucket_configuration: z.array(z.unknown()).optional(),
+});
+
+export type ViewInput = z.infer<typeof ViewInputSchema>;
+
+const createView = async (projectId: number, view: ViewInput) =>
+  wrapRequest(
+    serviceInstance.put<ProjectView>(`/projects/${projectId}/views`, view),
+  );
+
+const updateView = async (
+  projectId: number,
+  viewId: number,
+  partial: ViewInput,
+) =>
+  mergeAndPost<ProjectView>(
+    `/projects/${projectId}/views/${viewId}`,
+    partial as Record<string, unknown>,
+    VIEW_UPDATE_STRIP_KEYS,
+  );
+
+const deleteView = async (projectId: number, viewId: number) =>
+  wrapRequest(serviceInstance.delete(`/projects/${projectId}/views/${viewId}`));
+
 export default {
   listProjectViews,
   listBuckets,
@@ -149,6 +189,9 @@ export default {
   updateBucket,
   deleteBucket,
   moveTaskToBucket,
+  createView,
+  updateView,
+  deleteView,
 };
 
 export const toolDefinitions = [
@@ -255,6 +298,93 @@ export const toolDefinitions = [
         taskId: { type: 'integer', description: 'The ID of the task to move' },
       },
       required: ['projectId', 'viewId', 'bucketId', 'taskId'],
+    },
+  },
+  {
+    name: 'create_view',
+    description:
+      'Create a new view on a project. view_kind is one of list/gantt/table/kanban — only a kanban view owns buckets. For a kanban view you usually then create buckets and set default_bucket_id/done_bucket_id via update_view.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'integer', description: 'The ID of the project' },
+        title: { type: 'string', description: 'View title' },
+        view_kind: {
+          type: 'string',
+          enum: ['list', 'gantt', 'table', 'kanban'],
+          description: 'The kind of view',
+        },
+        position: {
+          type: 'number',
+          description: 'Sort position among the project’s views (optional)',
+        },
+        bucket_configuration_mode: {
+          type: 'string',
+          enum: ['none', 'manual', 'filter'],
+          description:
+            'Kanban bucket mode. "manual" = user-managed columns; "filter" = columns defined by bucket_configuration filters.',
+        },
+        filter: {
+          type: 'object',
+          description:
+            'TaskCollection filter object, e.g. { "filter": "done = false" }. Optional.',
+        },
+      },
+      required: ['projectId', 'title', 'view_kind'],
+    },
+  },
+  {
+    name: 'update_view',
+    description:
+      'Update a view (title, position, filter, or kanban bucket settings: bucket_configuration_mode, default_bucket_id, done_bucket_id). Fetches the view first and merges, so omitted fields — including the existing filter and bucket config — are preserved.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'integer', description: 'The ID of the project' },
+        viewId: {
+          type: 'integer',
+          description: 'The ID of the view to update',
+        },
+        title: { type: 'string' },
+        view_kind: {
+          type: 'string',
+          enum: ['list', 'gantt', 'table', 'kanban'],
+        },
+        position: { type: 'number' },
+        bucket_configuration_mode: {
+          type: 'string',
+          enum: ['none', 'manual', 'filter'],
+        },
+        default_bucket_id: {
+          type: 'integer',
+          description: 'Bucket where new tasks land',
+        },
+        done_bucket_id: {
+          type: 'integer',
+          description: 'Tasks moved here are marked done',
+        },
+        filter: {
+          type: 'object',
+          description: 'TaskCollection filter object, e.g. { "filter": "..." }',
+        },
+      },
+      required: ['projectId', 'viewId'],
+    },
+  },
+  {
+    name: 'delete_view',
+    description:
+      'Delete a view from a project. Destructive — for a kanban view this drops its buckets. Cannot be undone.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'integer', description: 'The ID of the project' },
+        viewId: {
+          type: 'integer',
+          description: 'The ID of the view to delete',
+        },
+      },
+      required: ['projectId', 'viewId'],
     },
   },
 ];
@@ -474,6 +604,122 @@ export const handlers: Record<string, ToolHandler> = {
           text: `Task ${args.taskId} moved to bucket ${args.bucketId}`,
         },
       ],
+    };
+  },
+
+  create_view: async request => {
+    const args = (request.params.arguments || {}) as Record<string, unknown>;
+    const err = requireInts(args, ['projectId']);
+    if (err) return { isError: true, content: [{ type: 'text', text: err }] };
+
+    try {
+      const view = ViewInputSchema.parse(args);
+      if (!view.title || !view.view_kind) {
+        return {
+          isError: true,
+          content: [{ type: 'text', text: 'title and view_kind are required' }],
+        };
+      }
+      const response = await createView(args.projectId as number, view);
+      if (response.isError) {
+        return {
+          isError: true,
+          content: [
+            { type: 'text', text: `Error creating view: ${response.error}` },
+          ],
+        };
+      }
+      return {
+        content: [
+          { type: 'text', text: 'View created:' },
+          {
+            type: 'text',
+            text: JSON.stringify(
+              slimView(response.data as unknown as Record<string, unknown>),
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: `Validation error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          },
+        ],
+      };
+    }
+  },
+
+  update_view: async request => {
+    const args = (request.params.arguments || {}) as Record<string, unknown>;
+    const err = requireInts(args, ['projectId', 'viewId']);
+    if (err) return { isError: true, content: [{ type: 'text', text: err }] };
+
+    try {
+      const partial = ViewInputSchema.parse(args);
+      const response = await updateView(
+        args.projectId as number,
+        args.viewId as number,
+        partial,
+      );
+      if (response.isError) {
+        return {
+          isError: true,
+          content: [
+            { type: 'text', text: `Error updating view: ${response.error}` },
+          ],
+        };
+      }
+      return {
+        content: [
+          { type: 'text', text: 'View updated:' },
+          {
+            type: 'text',
+            text: JSON.stringify(
+              slimView(response.data as unknown as Record<string, unknown>),
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: `Validation error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          },
+        ],
+      };
+    }
+  },
+
+  delete_view: async request => {
+    const args = (request.params.arguments || {}) as Record<string, unknown>;
+    const err = requireInts(args, ['projectId', 'viewId']);
+    if (err) return { isError: true, content: [{ type: 'text', text: err }] };
+
+    const response = await deleteView(
+      args.projectId as number,
+      args.viewId as number,
+    );
+    if (response.isError) {
+      return {
+        isError: true,
+        content: [
+          { type: 'text', text: `Error deleting view: ${response.error}` },
+        ],
+      };
+    }
+    return {
+      content: [{ type: 'text', text: `View ${args.viewId} deleted` }],
     };
   },
 };
