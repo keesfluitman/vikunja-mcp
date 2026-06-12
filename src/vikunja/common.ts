@@ -4,6 +4,8 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import axios from 'axios';
 import type { AxiosResponse } from 'axios';
+import { readFile } from 'node:fs/promises';
+import { basename } from 'node:path';
 
 const baseURL = `${process.env.VIKUNJA_API_BASE}/api/v1`;
 const headers = {
@@ -43,6 +45,28 @@ export const wrapRequest = async <T>(
       error: errorMessage,
     };
   }
+};
+
+// Vikunja's attachment endpoint is the only one that takes files, not JSON. The
+// shared serviceInstance defaults Content-Type to application/json, so we null
+// it here and let axios derive the multipart/form-data boundary from the
+// FormData body. Files are read from the MCP host's local filesystem by path —
+// MCP tool calls carry JSON args, not raw bytes, so the caller passes paths.
+export const uploadFiles = async <T>(
+  path: string,
+  filePaths: string[],
+  fieldName = 'files',
+): Promise<Response<T>> => {
+  const form = new FormData();
+  for (const fp of filePaths) {
+    const buf = await readFile(fp);
+    form.append(fieldName, new Blob([buf]), basename(fp));
+  }
+  return wrapRequest(
+    serviceInstance.put<T>(path, form, {
+      headers: { 'Content-Type': null },
+    }),
+  );
 };
 
 export type ToolHandler = (request: CallToolRequest) => Promise<CallToolResult>;

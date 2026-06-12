@@ -4,6 +4,7 @@ import {
   slimTask,
   slimList,
   mergeAndPost,
+  uploadFiles,
 } from './common.js';
 import type { ToolHandler } from './common.js';
 
@@ -207,6 +208,12 @@ const deleteTaskAttachment = async (taskId: number, attachmentId: number) =>
     serviceInstance.delete(`/tasks/${taskId}/attachments/${attachmentId}`),
   );
 
+// Upload one or more files as attachments. Multipart PUT — the only non-JSON
+// write in the API (see uploadFiles in common.ts). Makes the otherwise
+// read-only attachment tools read-write.
+const uploadTaskAttachment = async (taskId: number, filePaths: string[]) =>
+  uploadFiles(`/tasks/${taskId}/attachments`, filePaths);
+
 // Assignees and labels each have dedicated attach/detach endpoints. Prefer
 // these over update_task's full-replace `assignees`/`labels` arrays: adding one
 // assignee shouldn't require re-sending (and risking clobbering) the rest.
@@ -245,6 +252,7 @@ export default {
   listTaskAttachments,
   getTaskAttachment,
   deleteTaskAttachment,
+  uploadTaskAttachment,
   addTaskAssignee,
   removeTaskAssignee,
   addTaskLabel,
@@ -638,6 +646,24 @@ export const toolDefinitions = [
         },
       },
       required: ['taskId', 'attachmentId'],
+    },
+  },
+  {
+    name: 'upload_task_attachment',
+    description:
+      "Upload one or more files as attachments to a task. Files are read from the MCP server host's local filesystem by path (absolute paths recommended) — the tool cannot receive raw file bytes. Multipart PUT to /tasks/{id}/attachments.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'integer', description: 'The ID of the task' },
+        filePaths: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Paths on the MCP host to the files to upload (absolute paths recommended)',
+        },
+      },
+      required: ['taskId', 'filePaths'],
     },
   },
   {
@@ -1262,6 +1288,69 @@ export const handlers: Record<string, ToolHandler> = {
 
     return {
       content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+    };
+  },
+
+  upload_task_attachment: async request => {
+    const args = (request.params.arguments || {}) as Record<string, unknown>;
+    const taskId = args.taskId;
+    const filePaths = args.filePaths;
+    if (typeof taskId !== 'number') {
+      return {
+        isError: true,
+        content: [{ type: 'text', text: 'Invalid task ID' }],
+      };
+    }
+    if (
+      !Array.isArray(filePaths) ||
+      filePaths.length === 0 ||
+      !filePaths.every(p => typeof p === 'string')
+    ) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: 'filePaths must be a non-empty array of strings',
+          },
+        ],
+      };
+    }
+
+    let response;
+    try {
+      response = await uploadTaskAttachment(taskId, filePaths as string[]);
+    } catch (error) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: `Error reading files for upload: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          },
+        ],
+      };
+    }
+    if (response.isError) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: `Error uploading attachment(s) to task ${taskId}: ${response.error}`,
+          },
+        ],
+      };
+    }
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Uploaded ${filePaths.length} file(s) to task ${taskId}`,
+        },
+        { type: 'text', text: JSON.stringify(response.data, null, 2) },
+      ],
     };
   },
 
