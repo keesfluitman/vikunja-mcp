@@ -13,6 +13,20 @@ import {
 
 import { tools, handlers } from './vikunja/index.js';
 
+// Top-level guidance the MCP client injects into the model's context at
+// connect time. This is where cross-tool conventions live so a fresh session
+// understands the server without first having to call each tool and read its
+// description. Keep it short — it is always-on context.
+const INSTRUCTIONS = `Vikunja task manager over its REST API. Tools are grouped: tasks, projects, kanban (views/buckets), labels, saved filters, users.
+
+Conventions:
+- Discover before acting: use list_projects / list_labels to resolve names to IDs; for kanban, call list_project_views first to get the kanban view's id, default_bucket_id (where new tasks land) and done_bucket_id.
+- Reads default to OPEN tasks (filter "done = false") sorted by most-recently-updated. Pass filter "" to include done tasks. Filter DSL: https://vikunja.io/docs/filters (e.g. "priority >= 3", "due_date < now+7d", "labels in 1,2"). Read tools accept verbose:true for the full object; default is a slimmed payload.
+- Priority scale: 1 low, 2 medium, 3 high, 4 urgent. 0 means none. create_task defaults priority to 0.
+- update_task is a full REPLACE, not a PATCH: this server fetches-then-merges so omitting a field is safe, but only fields you understand should be changed. To attach/detach a single label or assignee prefer add_task_label / add_task_assignee (and the remove_* variants) over rewriting the whole task.
+- Moving tasks: use move_task to change a task's PROJECT; use move_task_to_bucket to move between kanban columns (do NOT set bucket_id via update_task — it is ambiguous across views). Dropping a task into a view's done_bucket_id marks it done.
+- Destructive tools (delete_*) cannot be undone.`;
+
 const server = new Server(
   {
     name: 'vikunja-mcp',
@@ -22,6 +36,7 @@ const server = new Server(
     capabilities: {
       tools: {},
     },
+    instructions: INSTRUCTIONS,
   },
 );
 
