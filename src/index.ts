@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // `Server` is JSDoc-deprecated in @modelcontextprotocol/sdk in favor of
-// `McpServer`, but the high-level API only accepts Zod schemas — our 32
+// `McpServer`, but the high-level API only accepts Zod schemas — our 65
 // tool definitions are hand-rolled JSON Schemas. The SDK note explicitly
 // permits `Server` "for advanced use cases" like ours. Revisit if/when
 // the SDK exposes a JSON-Schema path on McpServer.
@@ -30,7 +30,7 @@ Conventions:
 const server = new Server(
   {
     name: 'vikunja-mcp',
-    version: '0.1.0',
+    version: '1.3.0',
   },
   {
     capabilities: {

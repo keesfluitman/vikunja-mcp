@@ -1,4 +1,4 @@
-import { serviceInstance, wrapRequest, slimTask, slimList, mergeAndPost, } from './common.js';
+import { serviceInstance, wrapRequest, slimTask, slimList, mergeAndPost, uploadFiles, } from './common.js';
 // Server-managed / endpoint-rejected fields stripped from the merged update
 // body. Vikunja's POST /tasks/{id} would otherwise either ignore these or
 // reject with "Invalid model" — labels/assignees/attachments live on their own
@@ -90,6 +90,19 @@ const deleteTaskComment = async (taskId, commentId) => wrapRequest(serviceInstan
 const listTaskAttachments = async (taskId) => wrapRequest(serviceInstance.get(`/tasks/${taskId}/attachments`));
 const getTaskAttachment = async (taskId, attachmentId) => wrapRequest(serviceInstance.get(`/tasks/${taskId}/attachments/${attachmentId}`));
 const deleteTaskAttachment = async (taskId, attachmentId) => wrapRequest(serviceInstance.delete(`/tasks/${taskId}/attachments/${attachmentId}`));
+// Upload one or more files as attachments. Multipart PUT — the only non-JSON
+// write in the API (see uploadFiles in common.ts). Makes the otherwise
+// read-only attachment tools read-write.
+const uploadTaskAttachment = async (taskId, filePaths) => uploadFiles(`/tasks/${taskId}/attachments`, filePaths);
+// Assignees and labels each have dedicated attach/detach endpoints. Prefer
+// these over update_task's full-replace `assignees`/`labels` arrays: adding one
+// assignee shouldn't require re-sending (and risking clobbering) the rest.
+// Vikunja's verb convention: PUT to add, DELETE to remove. Not full-replace, so
+// no mergeAndPost needed.
+const addTaskAssignee = async (taskId, userId) => wrapRequest(serviceInstance.put(`/tasks/${taskId}/assignees`, { user_id: userId }));
+const removeTaskAssignee = async (taskId, userId) => wrapRequest(serviceInstance.delete(`/tasks/${taskId}/assignees/${userId}`));
+const addTaskLabel = async (taskId, labelId) => wrapRequest(serviceInstance.put(`/tasks/${taskId}/labels`, { label_id: labelId }));
+const removeTaskLabel = async (taskId, labelId) => wrapRequest(serviceInstance.delete(`/tasks/${taskId}/labels/${labelId}`));
 export default {
     listAllTasks,
     listProjectTasks,
@@ -107,6 +120,11 @@ export default {
     listTaskAttachments,
     getTaskAttachment,
     deleteTaskAttachment,
+    uploadTaskAttachment,
+    addTaskAssignee,
+    removeTaskAssignee,
+    addTaskLabel,
+    removeTaskLabel,
 };
 export const toolDefinitions = [
     {
@@ -482,6 +500,82 @@ export const toolDefinitions = [
                 },
             },
             required: ['taskId', 'attachmentId'],
+        },
+    },
+    {
+        name: 'upload_task_attachment',
+        description: "Upload one or more files as attachments to a task. Files are read from the MCP server host's local filesystem by path (absolute paths recommended) — the tool cannot receive raw file bytes. Multipart PUT to /tasks/{id}/attachments.",
+        inputSchema: {
+            type: 'object',
+            properties: {
+                taskId: { type: 'integer', description: 'The ID of the task' },
+                filePaths: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Paths on the MCP host to the files to upload (absolute paths recommended)',
+                },
+            },
+            required: ['taskId', 'filePaths'],
+        },
+    },
+    {
+        name: 'add_task_assignee',
+        description: 'Assign a user to a task. Prefer this over update_task for adding an assignee — it touches only the assignee list and leaves the rest of the task untouched. Resolve the userId via search_users first.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                taskId: { type: 'integer', description: 'The ID of the task' },
+                userId: {
+                    type: 'integer',
+                    description: 'The ID of the user to assign (from search_users)',
+                },
+            },
+            required: ['taskId', 'userId'],
+        },
+    },
+    {
+        name: 'remove_task_assignee',
+        description: 'Unassign a user from a task.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                taskId: { type: 'integer', description: 'The ID of the task' },
+                userId: {
+                    type: 'integer',
+                    description: 'The ID of the user to unassign',
+                },
+            },
+            required: ['taskId', 'userId'],
+        },
+    },
+    {
+        name: 'add_task_label',
+        description: 'Attach a label to a task. Prefer this over update_task for adding a label — it touches only the label list and leaves the rest of the task untouched. Resolve the labelId via list_labels first.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                taskId: { type: 'integer', description: 'The ID of the task' },
+                labelId: {
+                    type: 'integer',
+                    description: 'The ID of the label to attach (from list_labels)',
+                },
+            },
+            required: ['taskId', 'labelId'],
+        },
+    },
+    {
+        name: 'remove_task_label',
+        description: 'Detach a label from a task.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                taskId: { type: 'integer', description: 'The ID of the task' },
+                labelId: {
+                    type: 'integer',
+                    description: 'The ID of the label to detach',
+                },
+            },
+            required: ['taskId', 'labelId'],
         },
     },
 ];
@@ -967,6 +1061,169 @@ export const handlers = {
         }
         return {
             content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }],
+        };
+    },
+    upload_task_attachment: async (request) => {
+        const args = (request.params.arguments || {});
+        const taskId = args.taskId;
+        const filePaths = args.filePaths;
+        if (typeof taskId !== 'number') {
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid task ID' }],
+            };
+        }
+        if (!Array.isArray(filePaths) ||
+            filePaths.length === 0 ||
+            !filePaths.every(p => typeof p === 'string')) {
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: 'filePaths must be a non-empty array of strings',
+                    },
+                ],
+            };
+        }
+        let response;
+        try {
+            response = await uploadTaskAttachment(taskId, filePaths);
+        }
+        catch (error) {
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error reading files for upload: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                    },
+                ],
+            };
+        }
+        if (response.isError) {
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error uploading attachment(s) to task ${taskId}: ${response.error}`,
+                    },
+                ],
+            };
+        }
+        return {
+            content: [
+                {
+                    type: 'text',
+                    text: `Uploaded ${filePaths.length} file(s) to task ${taskId}`,
+                },
+                { type: 'text', text: JSON.stringify(response.data, null, 2) },
+            ],
+        };
+    },
+    add_task_assignee: async (request) => {
+        const { taskId, userId } = request.params.arguments || {};
+        if (typeof taskId !== 'number' || typeof userId !== 'number') {
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid task ID or user ID' }],
+            };
+        }
+        const response = await addTaskAssignee(taskId, userId);
+        if (response.isError) {
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error assigning user ${userId} to task ${taskId}: ${response.error}`,
+                    },
+                ],
+            };
+        }
+        return {
+            content: [
+                { type: 'text', text: `User ${userId} assigned to task ${taskId}` },
+            ],
+        };
+    },
+    remove_task_assignee: async (request) => {
+        const { taskId, userId } = request.params.arguments || {};
+        if (typeof taskId !== 'number' || typeof userId !== 'number') {
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid task ID or user ID' }],
+            };
+        }
+        const response = await removeTaskAssignee(taskId, userId);
+        if (response.isError) {
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error unassigning user ${userId} from task ${taskId}: ${response.error}`,
+                    },
+                ],
+            };
+        }
+        return {
+            content: [
+                { type: 'text', text: `User ${userId} unassigned from task ${taskId}` },
+            ],
+        };
+    },
+    add_task_label: async (request) => {
+        const { taskId, labelId } = request.params.arguments || {};
+        if (typeof taskId !== 'number' || typeof labelId !== 'number') {
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid task ID or label ID' }],
+            };
+        }
+        const response = await addTaskLabel(taskId, labelId);
+        if (response.isError) {
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error attaching label ${labelId} to task ${taskId}: ${response.error}`,
+                    },
+                ],
+            };
+        }
+        return {
+            content: [
+                { type: 'text', text: `Label ${labelId} attached to task ${taskId}` },
+            ],
+        };
+    },
+    remove_task_label: async (request) => {
+        const { taskId, labelId } = request.params.arguments || {};
+        if (typeof taskId !== 'number' || typeof labelId !== 'number') {
+            return {
+                isError: true,
+                content: [{ type: 'text', text: 'Invalid task ID or label ID' }],
+            };
+        }
+        const response = await removeTaskLabel(taskId, labelId);
+        if (response.isError) {
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error detaching label ${labelId} from task ${taskId}: ${response.error}`,
+                    },
+                ],
+            };
+        }
+        return {
+            content: [
+                { type: 'text', text: `Label ${labelId} detached from task ${taskId}` },
+            ],
         };
     },
 };

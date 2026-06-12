@@ -4,7 +4,9 @@ import labels, { toolDefinitions as labelToolDefinitions, handlers as labelHandl
 import savedFilters, { toolDefinitions as filterToolDefinitions, handlers as filterHandlers, } from './filters.js';
 import users, { toolDefinitions as userToolDefinitions, handlers as userHandlers, } from './users.js';
 import kanban, { toolDefinitions as kanbanToolDefinitions, handlers as kanbanHandlers, } from './kanban.js';
-export { projects, tasks, labels, savedFilters, users, kanban };
+import teams, { toolDefinitions as teamToolDefinitions, handlers as teamHandlers, } from './teams.js';
+import sharing, { toolDefinitions as sharingToolDefinitions, handlers as sharingHandlers, } from './sharing.js';
+export { projects, tasks, labels, savedFilters, users, kanban, teams, sharing };
 export const tools = [
     ...projectToolDefinitions,
     ...taskToolDefinitions,
@@ -12,6 +14,8 @@ export const tools = [
     ...filterToolDefinitions,
     ...userToolDefinitions,
     ...kanbanToolDefinitions,
+    ...teamToolDefinitions,
+    ...sharingToolDefinitions,
 ];
 export const handlers = {
     ...projectHandlers,
@@ -20,4 +24,6 @@ export const handlers = {
     ...filterHandlers,
     ...userHandlers,
     ...kanbanHandlers,
+    ...teamHandlers,
+    ...sharingHandlers,
 };

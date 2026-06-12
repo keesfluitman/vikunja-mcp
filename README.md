@@ -19,10 +19,15 @@ modules.
 - `get_task`, `create_task`, `update_task`, `delete_task`
 - `move_task` — move a task to a different project (preserves its other
   fields; for moving between kanban columns use `move_task_to_bucket`).
+- Assignees/labels: `add_task_assignee`, `remove_task_assignee`,
+  `add_task_label`, `remove_task_label` — dedicated attach/detach endpoints.
+  Prefer these over `update_task` for relation edits: they touch only that
+  relation and avoid the full-replace footgun.
 - Relations: `create_relation`, `delete_relation`
 - Comments: `get_task_comments`, `create_task_comment`, `update_task_comment`,
   `delete_task_comment`
-- Attachments (read-only): `list_task_attachments`, `get_task_attachment`,
+- Attachments: `list_task_attachments`, `get_task_attachment`,
+  `upload_task_attachment` (multipart — reads files from the MCP host by path),
   `delete_task_attachment`
 
 ### Projects
@@ -34,6 +39,9 @@ Kanban lives under project *views*, not the project directly — a project has
 several views (list/gantt/table/kanban) and only the kanban view owns buckets.
 - `list_project_views` — discover a project's views and, for the kanban view,
   its `default_bucket_id` (where new tasks land) and `done_bucket_id`.
+- `create_view`, `update_view`, `delete_view` — manage the views themselves
+  (list/gantt/table/kanban), including a kanban view's `default_bucket_id` /
+  `done_bucket_id` and its filter.
 - `list_buckets`, `create_bucket`, `update_bucket`, `delete_bucket` — manage
   the columns of a kanban view.
 - `move_task_to_bucket` — move a task into a bucket within a given view. This
@@ -49,6 +57,21 @@ several views (list/gantt/table/kanban) and only the kanban view owns buckets.
   `update_saved_filter`, `delete_saved_filter`. Vikunja exposes saved filters
   as virtual projects with negative IDs; `list_saved_filters` unwraps them and
   returns the underlying `filter_id`.
+
+### Teams
+- `list_teams`, `get_team`, `create_team`, `update_team`, `delete_team`
+- `add_team_member`, `remove_team_member` — both keyed by **username**, not user
+  ID (Vikunja's team-member endpoints take usernames).
+
+### Project sharing
+Three independent surfaces, all keyed off a project. Access level is
+`permission`: `0` read-only, `1` read/write, `2` admin.
+- Users: `list_project_users`, `add_project_user` (by username),
+  `update_project_user`, `remove_project_user`.
+- Teams: `list_project_teams`, `add_project_team`, `update_project_team`,
+  `remove_project_team`.
+- Link shares: `list_project_shares`, `create_project_share`,
+  `delete_project_share`.
 
 ### Users
 - `search_users` — exact-username lookup (Vikunja's `/users` endpoint does
