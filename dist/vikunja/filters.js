@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { serviceInstance, wrapRequest, mergeAndPost } from './common.js';
+import { serviceInstance, wrapRequest, mergeAndPost, toInt } from './common.js';
 const SAVED_FILTER_UPDATE_STRIP_KEYS = ['created', 'updated', 'owner'];
 // A saved filter wraps the same query params accepted by GET /tasks.
 const FilterParamsSchema = z.object({
@@ -156,8 +156,8 @@ export const handlers = {
         };
     },
     get_saved_filter: async (request) => {
-        const filterId = request.params.arguments?.filterId;
-        if (typeof filterId !== 'number') {
+        const filterId = toInt(request.params.arguments?.filterId);
+        if (isNaN(filterId)) {
             return {
                 isError: true,
                 content: [{ type: 'text', text: 'Invalid filter ID' }],
@@ -221,8 +221,8 @@ export const handlers = {
     },
     update_saved_filter: async (request) => {
         const args = (request.params.arguments || {});
-        const filterId = args.filterId;
-        if (typeof filterId !== 'number') {
+        const filterId = toInt(args.filterId);
+        if (isNaN(filterId)) {
             return {
                 isError: true,
                 content: [{ type: 'text', text: 'Invalid filter ID' }],
@@ -264,8 +264,8 @@ export const handlers = {
         }
     },
     delete_saved_filter: async (request) => {
-        const filterId = request.params.arguments?.filterId;
-        if (typeof filterId !== 'number') {
+        const filterId = toInt(request.params.arguments?.filterId);
+        if (isNaN(filterId)) {
             return {
                 isError: true,
                 content: [{ type: 'text', text: 'Invalid filter ID' }],

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { serviceInstance, wrapRequest, mergeAndPost } from './common.js';
+import { serviceInstance, wrapRequest, mergeAndPost, toInt } from './common.js';
 import type { ToolHandler } from './common.js';
 
 // Kanban in Vikunja lives under project VIEWS, not the project directly. A
@@ -394,7 +394,9 @@ const requireInts = (
   keys: string[],
 ): string | null => {
   for (const k of keys) {
-    if (typeof args[k] !== 'number') return `${k} must be a number`;
+    const n = toInt(args[k]);
+    if (isNaN(n)) return `${k} must be a number`;
+    args[k] = n;
   }
   return null;
 };

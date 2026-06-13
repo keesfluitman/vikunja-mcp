@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { serviceInstance, wrapRequest, mergeAndPost } from './common.js';
+import { serviceInstance, wrapRequest, mergeAndPost, toInt } from './common.js';
 import type { ToolHandler } from './common.js';
 import { UserSchema } from './schema.js';
 
@@ -281,9 +281,9 @@ export const handlers: Record<string, ToolHandler> = {
     };
   },
   get_project: async request => {
-    const projectId = request.params.arguments?.projectId;
+    const projectId = toInt(request.params.arguments?.projectId);
 
-    if (typeof projectId !== 'number') {
+    if (isNaN(projectId)) {
       return {
         isError: true,
         content: [
@@ -388,9 +388,11 @@ export const handlers: Record<string, ToolHandler> = {
     }
   },
   update_project: async request => {
-    const { projectId, ...projectData } = request.params.arguments || {};
+    const { projectId: _projectId, ...projectData } =
+      request.params.arguments || {};
+    const projectId = toInt(_projectId);
 
-    if (typeof projectId !== 'number') {
+    if (isNaN(projectId)) {
       return {
         isError: true,
         content: [
@@ -456,9 +458,9 @@ export const handlers: Record<string, ToolHandler> = {
     }
   },
   delete_project: async request => {
-    const projectId = request.params.arguments?.projectId;
+    const projectId = toInt(request.params.arguments?.projectId);
 
-    if (typeof projectId !== 'number') {
+    if (isNaN(projectId)) {
       return {
         isError: true,
         content: [

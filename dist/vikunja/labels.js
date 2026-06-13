@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { serviceInstance, wrapRequest, mergeAndPost } from './common.js';
+import { serviceInstance, wrapRequest, mergeAndPost, toInt } from './common.js';
 import { HexColorSchema } from './schema.js';
 const LABEL_UPDATE_STRIP_KEYS = ['created', 'updated', 'created_by'];
 const LabelInputSchema = z.object({
@@ -121,8 +121,8 @@ export const handlers = {
         };
     },
     get_label: async (request) => {
-        const labelId = request.params.arguments?.labelId;
-        if (typeof labelId !== 'number') {
+        const labelId = toInt(request.params.arguments?.labelId);
+        if (isNaN(labelId)) {
             return {
                 isError: true,
                 content: [{ type: 'text', text: 'Invalid label ID' }],
@@ -183,8 +183,8 @@ export const handlers = {
     },
     update_label: async (request) => {
         const args = (request.params.arguments || {});
-        const labelId = args.labelId;
-        if (typeof labelId !== 'number') {
+        const labelId = toInt(args.labelId);
+        if (isNaN(labelId)) {
             return {
                 isError: true,
                 content: [{ type: 'text', text: 'Invalid label ID' }],
@@ -226,8 +226,8 @@ export const handlers = {
         }
     },
     delete_label: async (request) => {
-        const labelId = request.params.arguments?.labelId;
-        if (typeof labelId !== 'number') {
+        const labelId = toInt(request.params.arguments?.labelId);
+        if (isNaN(labelId)) {
             return {
                 isError: true,
                 content: [{ type: 'text', text: 'Invalid label ID' }],

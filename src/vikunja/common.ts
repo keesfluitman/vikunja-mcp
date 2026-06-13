@@ -71,6 +71,16 @@ export const uploadFiles = async <T>(
 
 export type ToolHandler = (request: CallToolRequest) => Promise<CallToolResult>;
 
+// Coerce an ID argument to a number. MCP clients may serialize integers as
+// strings depending on the transport, so we cannot rely on `typeof === 'number'`
+// to validate IDs — that rejects a perfectly valid "42". Returns NaN when the
+// value can't be converted; callers gate on isNaN(toInt(x)).
+export const toInt = (value: unknown): number => {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string' && value.trim() !== '') return parseInt(value, 10);
+  return NaN;
+};
+
 // Vikunja's POST /resource/{id} endpoints are full-replace, not partial merge:
 // any field omitted from the body is reset to its zero value (title -> "",
 // priority -> 0, parent_project_id -> 0, etc.). To get true partial-update

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { serviceInstance, wrapRequest, mergeAndPost } from './common.js';
+import { serviceInstance, wrapRequest, mergeAndPost, toInt } from './common.js';
 const VIEW_KEEP_KEYS = [
     'id',
     'title',
@@ -272,8 +272,10 @@ export const toolDefinitions = [
 ];
 const requireInts = (args, keys) => {
     for (const k of keys) {
-        if (typeof args[k] !== 'number')
+        const n = toInt(args[k]);
+        if (isNaN(n))
             return `${k} must be a number`;
+        args[k] = n;
     }
     return null;
 };

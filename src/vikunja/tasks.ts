@@ -5,6 +5,7 @@ import {
   slimList,
   mergeAndPost,
   uploadFiles,
+  toInt,
 } from './common.js';
 import type { ToolHandler } from './common.js';
 
@@ -785,9 +786,9 @@ export const handlers: Record<string, ToolHandler> = {
 
   list_project_tasks: async request => {
     const args = (request.params.arguments || {}) as Record<string, unknown>;
-    const projectId = args.projectId;
+    const projectId = toInt(args.projectId);
     const verbose = args.verbose === true;
-    if (typeof projectId !== 'number') {
+    if (isNaN(projectId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid project ID' }],
@@ -834,9 +835,9 @@ export const handlers: Record<string, ToolHandler> = {
 
   get_task: async request => {
     const args = (request.params.arguments || {}) as Record<string, unknown>;
-    const taskId = args.taskId;
+    const taskId = toInt(args.taskId);
     const verbose = args.verbose === true;
-    if (typeof taskId !== 'number') {
+    if (isNaN(taskId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid task ID' }],
@@ -866,9 +867,11 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   create_task: async request => {
-    const { projectId, task: _task } = request.params.arguments || {};
+    const { projectId: _projectId, task: _task } =
+      request.params.arguments || {};
+    const projectId = toInt(_projectId);
 
-    if (typeof projectId !== 'number') {
+    if (isNaN(projectId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid project ID' }],
@@ -911,9 +914,10 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   update_task: async request => {
-    const { taskId, taskUpdates } = request.params.arguments || {};
+    const { taskId: _taskId, taskUpdates } = request.params.arguments || {};
+    const taskId = toInt(_taskId);
 
-    if (typeof taskId !== 'number') {
+    if (isNaN(taskId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid task ID' }],
@@ -963,8 +967,8 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   delete_task: async request => {
-    const taskId = request.params.arguments?.taskId;
-    if (typeof taskId !== 'number') {
+    const taskId = toInt(request.params.arguments?.taskId);
+    if (isNaN(taskId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid task ID' }],
@@ -990,8 +994,11 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   move_task: async request => {
-    const { taskId, projectId } = request.params.arguments || {};
-    if (typeof taskId !== 'number' || typeof projectId !== 'number') {
+    const { taskId: _taskId, projectId: _projectId } =
+      request.params.arguments || {};
+    const taskId = toInt(_taskId);
+    const projectId = toInt(_projectId);
+    if (isNaN(taskId) || isNaN(projectId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid task ID or project ID' }],
@@ -1020,10 +1027,15 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   create_relation: async request => {
-    const { taskId, otherTaskId, relationKind } =
-      request.params.arguments || {};
+    const {
+      taskId: _taskId,
+      otherTaskId: _otherTaskId,
+      relationKind,
+    } = request.params.arguments || {};
+    const taskId = toInt(_taskId);
+    const otherTaskId = toInt(_otherTaskId);
 
-    if (typeof taskId !== 'number' || typeof otherTaskId !== 'number') {
+    if (isNaN(taskId) || isNaN(otherTaskId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid task ID or other task ID' }],
@@ -1060,9 +1072,15 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   delete_relation: async request => {
-    const { taskId, kind, otherTaskId } = request.params.arguments || {};
+    const {
+      taskId: _taskId,
+      kind,
+      otherTaskId: _otherTaskId,
+    } = request.params.arguments || {};
+    const taskId = toInt(_taskId);
+    const otherTaskId = toInt(_otherTaskId);
 
-    if (typeof taskId !== 'number' || typeof otherTaskId !== 'number') {
+    if (isNaN(taskId) || isNaN(otherTaskId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid task ID or other task ID' }],
@@ -1099,8 +1117,8 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   get_task_comments: async request => {
-    const taskId = request.params.arguments?.taskId;
-    if (typeof taskId !== 'number') {
+    const taskId = toInt(request.params.arguments?.taskId);
+    if (isNaN(taskId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid task ID' }],
@@ -1126,8 +1144,9 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   create_task_comment: async request => {
-    const { taskId, comment } = request.params.arguments || {};
-    if (typeof taskId !== 'number') {
+    const { taskId: _taskId, comment } = request.params.arguments || {};
+    const taskId = toInt(_taskId);
+    if (isNaN(taskId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid task ID' }],
@@ -1153,8 +1172,14 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   update_task_comment: async request => {
-    const { taskId, commentId, comment } = request.params.arguments || {};
-    if (typeof taskId !== 'number' || typeof commentId !== 'number') {
+    const {
+      taskId: _taskId,
+      commentId: _commentId,
+      comment,
+    } = request.params.arguments || {};
+    const taskId = toInt(_taskId);
+    const commentId = toInt(_commentId);
+    if (isNaN(taskId) || isNaN(commentId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid task ID or comment ID' }],
@@ -1184,8 +1209,11 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   delete_task_comment: async request => {
-    const { taskId, commentId } = request.params.arguments || {};
-    if (typeof taskId !== 'number' || typeof commentId !== 'number') {
+    const { taskId: _taskId, commentId: _commentId } =
+      request.params.arguments || {};
+    const taskId = toInt(_taskId);
+    const commentId = toInt(_commentId);
+    if (isNaN(taskId) || isNaN(commentId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid task ID or comment ID' }],
@@ -1211,8 +1239,8 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   list_task_attachments: async request => {
-    const taskId = request.params.arguments?.taskId;
-    if (typeof taskId !== 'number') {
+    const taskId = toInt(request.params.arguments?.taskId);
+    if (isNaN(taskId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid task ID' }],
@@ -1238,8 +1266,11 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   get_task_attachment: async request => {
-    const { taskId, attachmentId } = request.params.arguments || {};
-    if (typeof taskId !== 'number' || typeof attachmentId !== 'number') {
+    const { taskId: _taskId, attachmentId: _attachmentId } =
+      request.params.arguments || {};
+    const taskId = toInt(_taskId);
+    const attachmentId = toInt(_attachmentId);
+    if (isNaN(taskId) || isNaN(attachmentId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid task ID or attachment ID' }],
@@ -1265,8 +1296,11 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   delete_task_attachment: async request => {
-    const { taskId, attachmentId } = request.params.arguments || {};
-    if (typeof taskId !== 'number' || typeof attachmentId !== 'number') {
+    const { taskId: _taskId, attachmentId: _attachmentId } =
+      request.params.arguments || {};
+    const taskId = toInt(_taskId);
+    const attachmentId = toInt(_attachmentId);
+    if (isNaN(taskId) || isNaN(attachmentId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid task ID or attachment ID' }],
@@ -1293,9 +1327,9 @@ export const handlers: Record<string, ToolHandler> = {
 
   upload_task_attachment: async request => {
     const args = (request.params.arguments || {}) as Record<string, unknown>;
-    const taskId = args.taskId;
+    const taskId = toInt(args.taskId);
     const filePaths = args.filePaths;
-    if (typeof taskId !== 'number') {
+    if (isNaN(taskId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid task ID' }],
@@ -1355,8 +1389,11 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   add_task_assignee: async request => {
-    const { taskId, userId } = request.params.arguments || {};
-    if (typeof taskId !== 'number' || typeof userId !== 'number') {
+    const { taskId: _taskId, userId: _userId } =
+      request.params.arguments || {};
+    const taskId = toInt(_taskId);
+    const userId = toInt(_userId);
+    if (isNaN(taskId) || isNaN(userId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid task ID or user ID' }],
@@ -1384,8 +1421,11 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   remove_task_assignee: async request => {
-    const { taskId, userId } = request.params.arguments || {};
-    if (typeof taskId !== 'number' || typeof userId !== 'number') {
+    const { taskId: _taskId, userId: _userId } =
+      request.params.arguments || {};
+    const taskId = toInt(_taskId);
+    const userId = toInt(_userId);
+    if (isNaN(taskId) || isNaN(userId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid task ID or user ID' }],
@@ -1413,8 +1453,11 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   add_task_label: async request => {
-    const { taskId, labelId } = request.params.arguments || {};
-    if (typeof taskId !== 'number' || typeof labelId !== 'number') {
+    const { taskId: _taskId, labelId: _labelId } =
+      request.params.arguments || {};
+    const taskId = toInt(_taskId);
+    const labelId = toInt(_labelId);
+    if (isNaN(taskId) || isNaN(labelId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid task ID or label ID' }],
@@ -1442,8 +1485,11 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   remove_task_label: async request => {
-    const { taskId, labelId } = request.params.arguments || {};
-    if (typeof taskId !== 'number' || typeof labelId !== 'number') {
+    const { taskId: _taskId, labelId: _labelId } =
+      request.params.arguments || {};
+    const taskId = toInt(_taskId);
+    const labelId = toInt(_labelId);
+    if (isNaN(taskId) || isNaN(labelId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid task ID or label ID' }],

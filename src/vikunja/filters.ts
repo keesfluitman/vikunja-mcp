@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { serviceInstance, wrapRequest, mergeAndPost } from './common.js';
+import { serviceInstance, wrapRequest, mergeAndPost, toInt } from './common.js';
 import type { ToolHandler } from './common.js';
 
 const SAVED_FILTER_UPDATE_STRIP_KEYS = ['created', 'updated', 'owner'] as const;
@@ -199,8 +199,8 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   get_saved_filter: async request => {
-    const filterId = request.params.arguments?.filterId;
-    if (typeof filterId !== 'number') {
+    const filterId = toInt(request.params.arguments?.filterId);
+    if (isNaN(filterId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid filter ID' }],
@@ -265,8 +265,8 @@ export const handlers: Record<string, ToolHandler> = {
 
   update_saved_filter: async request => {
     const args = (request.params.arguments || {}) as Record<string, unknown>;
-    const filterId = args.filterId;
-    if (typeof filterId !== 'number') {
+    const filterId = toInt(args.filterId);
+    if (isNaN(filterId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid filter ID' }],
@@ -308,8 +308,8 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   delete_saved_filter: async request => {
-    const filterId = request.params.arguments?.filterId;
-    if (typeof filterId !== 'number') {
+    const filterId = toInt(request.params.arguments?.filterId);
+    if (isNaN(filterId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid filter ID' }],

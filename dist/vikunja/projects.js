@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { serviceInstance, wrapRequest, mergeAndPost } from './common.js';
+import { serviceInstance, wrapRequest, mergeAndPost, toInt } from './common.js';
 import { UserSchema } from './schema.js';
 // Server-managed / endpoint-rejected fields stripped from the merged update
 // body. owner, views, and the background_* fields would either be ignored or
@@ -237,8 +237,8 @@ export const handlers = {
         };
     },
     get_project: async (request) => {
-        const projectId = request.params.arguments?.projectId;
-        if (typeof projectId !== 'number') {
+        const projectId = toInt(request.params.arguments?.projectId);
+        if (isNaN(projectId)) {
             return {
                 isError: true,
                 content: [
@@ -335,8 +335,9 @@ export const handlers = {
         }
     },
     update_project: async (request) => {
-        const { projectId, ...projectData } = request.params.arguments || {};
-        if (typeof projectId !== 'number') {
+        const { projectId: _projectId, ...projectData } = request.params.arguments || {};
+        const projectId = toInt(_projectId);
+        if (isNaN(projectId)) {
             return {
                 isError: true,
                 content: [
@@ -399,8 +400,8 @@ export const handlers = {
         }
     },
     delete_project: async (request) => {
-        const projectId = request.params.arguments?.projectId;
-        if (typeof projectId !== 'number') {
+        const projectId = toInt(request.params.arguments?.projectId);
+        if (isNaN(projectId)) {
             return {
                 isError: true,
                 content: [

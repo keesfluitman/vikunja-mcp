@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { serviceInstance, wrapRequest, mergeAndPost } from './common.js';
+import { serviceInstance, wrapRequest, mergeAndPost, toInt } from './common.js';
 import type { ToolHandler } from './common.js';
 
 // Teams follow Vikunja's standard v1 verbs: create = PUT /teams, update = POST
@@ -202,8 +202,8 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   get_team: async request => {
-    const teamId = request.params.arguments?.teamId;
-    if (typeof teamId !== 'number') {
+    const teamId = toInt(request.params.arguments?.teamId);
+    if (isNaN(teamId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid team ID' }],
@@ -265,8 +265,8 @@ export const handlers: Record<string, ToolHandler> = {
 
   update_team: async request => {
     const args = (request.params.arguments || {}) as Record<string, unknown>;
-    const teamId = args.teamId;
-    if (typeof teamId !== 'number') {
+    const teamId = toInt(args.teamId);
+    if (isNaN(teamId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid team ID' }],
@@ -308,8 +308,8 @@ export const handlers: Record<string, ToolHandler> = {
   },
 
   delete_team: async request => {
-    const teamId = request.params.arguments?.teamId;
-    if (typeof teamId !== 'number') {
+    const teamId = toInt(request.params.arguments?.teamId);
+    if (isNaN(teamId)) {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid team ID' }],
@@ -332,9 +332,9 @@ export const handlers: Record<string, ToolHandler> = {
 
   add_team_member: async request => {
     const args = (request.params.arguments || {}) as Record<string, unknown>;
-    const teamId = args.teamId;
+    const teamId = toInt(args.teamId);
     const username = args.username;
-    if (typeof teamId !== 'number' || typeof username !== 'string') {
+    if (isNaN(teamId) || typeof username !== 'string') {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid team ID or username' }],
@@ -360,9 +360,9 @@ export const handlers: Record<string, ToolHandler> = {
 
   remove_team_member: async request => {
     const args = (request.params.arguments || {}) as Record<string, unknown>;
-    const teamId = args.teamId;
+    const teamId = toInt(args.teamId);
     const username = args.username;
-    if (typeof teamId !== 'number' || typeof username !== 'string') {
+    if (isNaN(teamId) || typeof username !== 'string') {
       return {
         isError: true,
         content: [{ type: 'text', text: 'Invalid team ID or username' }],
