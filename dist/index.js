@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // `Server` is JSDoc-deprecated in @modelcontextprotocol/sdk in favor of
-// `McpServer`, but the high-level API only accepts Zod schemas — our 65
+// `McpServer`, but the high-level API only accepts Zod schemas — our 66
 // tool definitions are hand-rolled JSON Schemas. The SDK note explicitly
 // permits `Server` "for advanced use cases" like ours. Revisit if/when
 // the SDK exposes a JSON-Schema path on McpServer.
@@ -19,11 +19,12 @@ Conventions:
 - Reads default to OPEN tasks (filter "done = false") sorted by most-recently-updated. Pass filter "" to include done tasks. Filter DSL: https://vikunja.io/docs/filters (e.g. "priority >= 3", "due_date < now+7d", "labels in 1,2"). Read tools accept verbose:true for the full object; default is a slimmed payload.
 - Priority scale: 1 low, 2 medium, 3 high, 4 urgent. 0 means none. create_task defaults priority to 0.
 - update_task is a full REPLACE, not a PATCH: this server fetches-then-merges so omitting a field is safe, but only fields you understand should be changed. To attach/detach a single label or assignee prefer add_task_label / add_task_assignee (and the remove_* variants) over rewriting the whole task.
+- Reading a kanban board: use get_kanban_board (projectId + kanban viewId) to see which tasks are in which column — plain task lists report bucket_id: 0 because bucket membership is per-view. list_buckets gives column metadata + task counts only.
 - Moving tasks: use move_task to change a task's PROJECT; use move_task_to_bucket to move between kanban columns (do NOT set bucket_id via update_task — it is ambiguous across views). Dropping a task into a view's done_bucket_id marks it done.
 - Destructive tools (delete_*) cannot be undone.`;
 const server = new Server({
     name: 'vikunja-mcp',
-    version: '1.3.0',
+    version: '1.4.0',
 }, {
     capabilities: {
         tools: {},
