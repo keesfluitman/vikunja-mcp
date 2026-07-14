@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { serviceInstance, wrapRequest, mergeAndPost } from './common.js';
+import { serviceInstance, wrapRequest, mergeAndPost, slimList } from './common.js';
 import type { ToolHandler } from './common.js';
 
 // Kanban in Vikunja lives under project VIEWS, not the project directly. A
@@ -47,6 +47,23 @@ type Bucket = {
   position: number;
 };
 
+// The board endpoint the web UI uses to render a kanban view. Same buckets as
+// the /buckets endpoint, but each carries a nested `tasks[]` array.
+type ViewBucketWithTasks = Bucket & {
+  tasks?: Array<Record<string, unknown>> | null;
+};
+
+// Bucket metadata worth returning alongside the tasks. `count` is derived from
+// the nested tasks[] length, not the server's `count` field — the latter is
+// broken (always 0) on the /buckets endpoint in Vikunja v2.3.0.
+const BOARD_BUCKET_KEEP_KEYS = [
+  'id',
+  'title',
+  'project_view_id',
+  'position',
+  'limit',
+] as const;
+
 const BucketInputSchema = z.object({
   title: z.string().optional(),
   // Per-bucket WIP limit; 0 means no limit.
@@ -65,6 +82,23 @@ const listBuckets = async (projectId: number, viewId: number) =>
   wrapRequest(
     serviceInstance.get<Array<Bucket>>(
       `/projects/${projectId}/views/${viewId}/buckets`,
+    ),
+  );
+
+// GET /projects/{p}/views/{v}/tasks is the board endpoint the Vikunja web UI
+// uses: it returns the view's buckets, each with a nested `tasks[]` array. This
+// is the ONLY way to read which tasks sit in which kanban column — the plain
+// task lists come back with bucket_id: 0 because membership is per-view, and
+// the /buckets endpoint returns no tasks. `per_page` bounds tasks per bucket.
+const listViewTasks = async (
+  projectId: number,
+  viewId: number,
+  perPage = 200,
+) =>
+  wrapRequest(
+    serviceInstance.get<Array<ViewBucketWithTasks>>(
+      `/projects/${projectId}/views/${viewId}/tasks`,
+      { params: { per_page: perPage } },
     ),
   );
 
@@ -185,6 +219,7 @@ const deleteView = async (projectId: number, viewId: number) =>
 export default {
   listProjectViews,
   listBuckets,
+  listViewTasks,
   createBucket,
   updateBucket,
   deleteBucket,
@@ -210,7 +245,7 @@ export const toolDefinitions = [
   {
     name: 'list_buckets',
     description:
-      'List the kanban buckets (columns) of a project view, including each bucket’s task count and WIP limit. Get the viewId from list_project_views (the view_kind="kanban" entry).',
+      'List the kanban buckets (columns) of a project view — id, title, position, WIP limit, and a per-bucket task count. The count is derived from the board endpoint (the buckets endpoint’s own count is broken on Vikunja v2.3.0). Metadata only, no tasks — use get_kanban_board to read the tasks in each column. Get the viewId from list_project_views (the view_kind="kanban" entry).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -218,6 +253,31 @@ export const toolDefinitions = [
         viewId: {
           type: 'integer',
           description: 'The kanban view ID (from list_project_views)',
+        },
+      },
+      required: ['projectId', 'viewId'],
+    },
+  },
+  {
+    name: 'get_kanban_board',
+    description:
+      'Read a kanban board: returns each bucket (column) with its tasks nested inside. This is the ONLY way to see which tasks sit in which column — plain task lists report bucket_id: 0 because bucket membership is per-view. Tasks are slimmed like the other list tools (pass verbose:true for full objects). Get the viewId from list_project_views (the view_kind="kanban" entry).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'integer', description: 'The ID of the project' },
+        viewId: {
+          type: 'integer',
+          description: 'The kanban view ID (from list_project_views)',
+        },
+        per_page: {
+          type: 'integer',
+          description: 'Max tasks per bucket (default 200)',
+        },
+        verbose: {
+          type: 'boolean',
+          description:
+            'Return full task objects instead of the slimmed payload. Default false.',
         },
       },
       required: ['projectId', 'viewId'],
@@ -433,10 +493,15 @@ export const handlers: Record<string, ToolHandler> = {
     const err = requireInts(args, ['projectId', 'viewId']);
     if (err) return { isError: true, content: [{ type: 'text', text: err }] };
 
-    const response = await listBuckets(
-      args.projectId as number,
-      args.viewId as number,
-    );
+    const projectId = args.projectId as number;
+    const viewId = args.viewId as number;
+    // The /buckets endpoint gives us title/limit/position but a broken count;
+    // the board endpoint gives us the real per-bucket task count. Fetch both and
+    // backfill count by bucket id.
+    const [response, board] = await Promise.all([
+      listBuckets(projectId, viewId),
+      listViewTasks(projectId, viewId),
+    ]);
     if (response.isError) {
       return {
         isError: true,
@@ -445,10 +510,69 @@ export const handlers: Record<string, ToolHandler> = {
         ],
       };
     }
-    const buckets = response.data ?? [];
+    const counts = new Map<number, number>();
+    if (!board.isError) {
+      for (const b of board.data ?? []) {
+        counts.set(b.id, Array.isArray(b.tasks) ? b.tasks.length : 0);
+      }
+    }
+    const buckets = (response.data ?? []).map(b => ({
+      ...b,
+      count: counts.get(b.id) ?? b.count,
+    }));
     return {
       content: [
         { type: 'text', text: `Found ${buckets.length} bucket(s)` },
+        { type: 'text', text: JSON.stringify(buckets, null, 2) },
+      ],
+    };
+  },
+
+  get_kanban_board: async request => {
+    const args = (request.params.arguments || {}) as Record<string, unknown>;
+    const err = requireInts(args, ['projectId', 'viewId']);
+    if (err) return { isError: true, content: [{ type: 'text', text: err }] };
+
+    const verbose = args.verbose === true;
+    const perPage =
+      typeof args.per_page === 'number' ? args.per_page : undefined;
+
+    const response = await listViewTasks(
+      args.projectId as number,
+      args.viewId as number,
+      perPage,
+    );
+    if (response.isError) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: `Error fetching kanban board: ${response.error}`,
+          },
+        ],
+      };
+    }
+
+    let totalTasks = 0;
+    const buckets = (response.data ?? []).map(b => {
+      const tasks = Array.isArray(b.tasks) ? b.tasks : [];
+      totalTasks += tasks.length;
+      const out: Record<string, unknown> = {};
+      for (const k of BOARD_BUCKET_KEEP_KEYS) {
+        if (k in b) out[k] = (b as Record<string, unknown>)[k];
+      }
+      out.count = tasks.length;
+      out.tasks = slimList(tasks, 'task', verbose);
+      return out;
+    });
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Board has ${buckets.length} bucket(s), ${totalTasks} task(s)`,
+        },
         { type: 'text', text: JSON.stringify(buckets, null, 2) },
       ],
     };

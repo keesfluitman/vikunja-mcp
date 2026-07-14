@@ -43,7 +43,14 @@ several views (list/gantt/table/kanban) and only the kanban view owns buckets.
   (list/gantt/table/kanban), including a kanban view's `default_bucket_id` /
   `done_bucket_id` and its filter.
 - `list_buckets`, `create_bucket`, `update_bucket`, `delete_bucket` — manage
-  the columns of a kanban view.
+  the columns of a kanban view. `list_buckets` returns column metadata plus a
+  per-bucket task count (derived from the board endpoint, since the buckets
+  endpoint's own `count` is broken on Vikunja v2.3.0) — no tasks.
+- `get_kanban_board` — read the board: every bucket (column) with its tasks
+  nested inside. This is the only way to see which tasks sit in which column;
+  plain task lists report `bucket_id: 0` because bucket membership is per-view.
+  Tasks are slimmed like the other list tools (`verbose: true` for full
+  objects); `per_page` bounds tasks per bucket (default 200).
 - `move_task_to_bucket` — move a task into a bucket within a given view. This
   is the correct way to move a task between columns; `update_task` with a
   `bucket_id` is ambiguous across views. Dropping a task into the view's
