@@ -1,28 +1,22 @@
 import { z } from 'zod';
-import { serviceInstance, wrapRequest, mergeAndPost } from './common.js';
-// Teams follow Vikunja's standard v1 verbs: create = PUT /teams, update = POST
-// /teams/{id} (full-replace → mergeAndPost). Members live on a nested endpoint:
-// add = PUT /teams/{id}/members { username, admin }, and remove is keyed by
-// USERNAME in the path (DELETE /teams/{id}/members/{username}), not user id.
-const TEAM_UPDATE_STRIP_KEYS = [
-    'created',
-    'updated',
-    'created_by',
-    'members',
-];
+import { serviceInstance, wrapRequest, getList, patch } from './common.js';
+// v2 verbs: create = POST /teams, update = PATCH /teams/{id} (partial). Members
+// live on a nested endpoint: add = POST /teams/{id}/members { username, admin },
+// and remove is keyed by USERNAME in the path (DELETE
+// /teams/{id}/members/{username}), not user id.
 const TeamInputSchema = z.object({
     name: z.string().optional(),
     description: z.string().optional(),
     is_public: z.boolean().optional(),
 });
-const listTeams = async (page = 1, perPage = 50, search) => wrapRequest(serviceInstance.get('/teams', {
+const listTeams = async (page = 1, perPage = 50, search) => getList('/teams', {
     params: { page, per_page: perPage, ...(search ? { s: search } : {}) },
-}));
+});
 const getTeam = async (teamId) => wrapRequest(serviceInstance.get(`/teams/${teamId}`));
-const createTeam = async (team) => wrapRequest(serviceInstance.put('/teams', team));
-const updateTeam = async (teamId, partial) => mergeAndPost(`/teams/${teamId}`, partial, TEAM_UPDATE_STRIP_KEYS);
+const createTeam = async (team) => wrapRequest(serviceInstance.post('/teams', team));
+const updateTeam = async (teamId, partial) => patch(`/teams/${teamId}`, partial);
 const deleteTeam = async (teamId) => wrapRequest(serviceInstance.delete(`/teams/${teamId}`));
-const addTeamMember = async (teamId, username, admin = false) => wrapRequest(serviceInstance.put(`/teams/${teamId}/members`, { username, admin }));
+const addTeamMember = async (teamId, username, admin = false) => wrapRequest(serviceInstance.post(`/teams/${teamId}/members`, { username, admin }));
 const removeTeamMember = async (teamId, username) => wrapRequest(serviceInstance.delete(`/teams/${teamId}/members/${username}`));
 export default {
     listTeams,

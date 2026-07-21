@@ -1,12 +1,11 @@
 import { z } from 'zod';
-import { serviceInstance, wrapRequest, mergeAndPost } from './common.js';
+import { serviceInstance, wrapRequest, getList, patch } from './common.js';
 import { UserSchema } from './schema.js';
-// Server-managed / endpoint-rejected fields stripped from the merged update
-// body. owner, views, and the background_* fields would either be ignored or
-// trigger "Invalid model" — see commit 3918d85 for the historical context.
+// Caller-supplied fields dropped from a PATCH body: owner/views/background_* are
+// read-only or nested and would trigger "Invalid model"; max_right is a
+// computed access field. Everything else the caller passes is a genuine partial
+// update — v2 PATCH leaves omitted fields untouched.
 const PROJECT_UPDATE_STRIP_KEYS = [
-    'created',
-    'updated',
     'owner',
     'views',
     'subscription',
@@ -27,12 +26,10 @@ const ProjectSchema = z.object({
     position: z.number().optional(),
     title: z.string(),
 });
-const listProjects = async (page = 1, perPage = 50) => wrapRequest(serviceInstance.get('/projects', {
-    params: { page, per_page: perPage },
-}));
+const listProjects = async (page = 1, perPage = 50) => getList('/projects', { params: { page, per_page: perPage } });
 const getProject = async (projectId) => wrapRequest(serviceInstance.get(`/projects/${projectId}`));
-const createProject = async (projectData) => wrapRequest(serviceInstance.put('/projects', projectData));
-const updateProject = async (projectId, projectData) => mergeAndPost(`/projects/${projectId}`, projectData, PROJECT_UPDATE_STRIP_KEYS);
+const createProject = async (projectData) => wrapRequest(serviceInstance.post('/projects', projectData));
+const updateProject = async (projectId, projectData) => patch(`/projects/${projectId}`, projectData, PROJECT_UPDATE_STRIP_KEYS);
 const deleteProject = async (projectId) => wrapRequest(serviceInstance.delete(`/projects/${projectId}`));
 const projects = {
     listProjects,

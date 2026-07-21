@@ -1,20 +1,11 @@
-import { serviceInstance, wrapRequest, slimTask, slimList, mergeAndPost, uploadFiles, } from './common.js';
-// Server-managed / endpoint-rejected fields stripped from the merged update
-// body. Vikunja's POST /tasks/{id} would otherwise either ignore these or
-// reject with "Invalid model" — labels/assignees/attachments live on their own
-// nested endpoints and reactions/related_tasks/created_by are read-only.
-const TASK_UPDATE_STRIP_KEYS = [
-    'created',
-    'updated',
-    'done_at',
-    'created_by',
-    'reactions',
-    'related_tasks',
-    'attachments',
-    'cover_image_attachment_id',
-    'index',
-    'subscription',
-];
+import { serviceInstance, wrapRequest, getList, slimTask, slimList, patch, uploadFiles, } from './common.js';
+// Fields dropped from a PATCH body if the caller supplies them: labels and
+// assignees live on their own nested endpoints (add_task_label /
+// add_task_assignee), and sending them here would either be rejected or do a
+// surprising full-replace of those lists. Everything else the caller sends is
+// a genuine partial update — v2 PATCH leaves omitted fields untouched, so the
+// long v1 strip list (created/updated/done_at/…) is no longer needed.
+const TASK_UPDATE_STRIP_KEYS = ['labels', 'assignees'];
 import { z } from 'zod';
 import { DateTimeSchema, HexColorSchema, IdentifierSchema, RelationKindSchema, } from './schema.js';
 // Input schema for create/update — all fields optional except title (on create)
@@ -59,49 +50,56 @@ const applyTaskListDefaults = (p) => {
         params.filter_timezone = p.filter_timezone;
     if (p.expand !== undefined)
         params.expand = p.expand;
+    if (p.format !== undefined)
+        params.format = p.format;
     return params;
 };
-const listAllTasks = async (params = {}) => wrapRequest(serviceInstance.get('/tasks', {
+const listAllTasks = async (params = {}) => getList('/tasks', { params: applyTaskListDefaults(params) });
+const listProjectTasks = async (projectId, params = {}) => getList(`/projects/${projectId}/tasks`, {
     params: applyTaskListDefaults(params),
+});
+const getTask = async (taskId, format) => wrapRequest(serviceInstance.get(`/tasks/${taskId}`, {
+    params: format ? { format } : undefined,
 }));
-const listProjectTasks = async (projectId, params = {}) => wrapRequest(serviceInstance.get(`/projects/${projectId}/tasks`, {
-    params: applyTaskListDefaults(params),
+// v2 is RESTful: POST creates. `format=markdown` lets the caller send the
+// description as Markdown instead of HTML.
+const createTask = async (projectId, task, format) => wrapRequest(serviceInstance.post(`/projects/${projectId}/tasks`, task, {
+    params: format ? { format } : undefined,
 }));
-const getTask = async (taskId) => wrapRequest(serviceInstance.get(`/tasks/${taskId}`));
-const createTask = async (projectId, task) => wrapRequest(serviceInstance.put(`/projects/${projectId}/tasks`, task));
-const updateTask = async (taskId, task) => mergeAndPost(`/tasks/${taskId}`, task, TASK_UPDATE_STRIP_KEYS);
+// v2 PATCH is a true partial update — only the caller's fields change, so no
+// GET-then-merge and no done_at-reset footgun.
+const updateTask = async (taskId, task) => patch(`/tasks/${taskId}`, task, TASK_UPDATE_STRIP_KEYS);
 const deleteTask = async (taskId) => wrapRequest(serviceInstance.delete(`/tasks/${taskId}`));
-// Move a task to a different project. Vikunja moves a task by POSTing it with a
-// changed project_id; we route through mergeAndPost so the rest of the task
-// (title, labels, dates, etc.) survives the full-replace POST. Kept as a
-// dedicated tool rather than a project_id field on update_task so the LLM can't
-// relocate a task by accident while editing other fields.
-const moveTask = async (taskId, projectId) => mergeAndPost(`/tasks/${taskId}`, { project_id: projectId }, TASK_UPDATE_STRIP_KEYS);
-const createRelation = async (taskId, otherTaskId, relationKind) => wrapRequest(serviceInstance.put(`/tasks/${taskId}/relations`, {
+// Move a task to a different project — a one-field PATCH of project_id. Kept as
+// a dedicated tool rather than a project_id field on update_task so the LLM
+// can't relocate a task by accident while editing other fields.
+const moveTask = async (taskId, projectId) => patch(`/tasks/${taskId}`, { project_id: projectId });
+const createRelation = async (taskId, otherTaskId, relationKind) => wrapRequest(serviceInstance.post(`/tasks/${taskId}/relations`, {
     task_id: taskId,
     other_task_id: otherTaskId,
     relation_kind: relationKind,
 }));
 const deleteRelation = async (taskId, kind, otherTaskId) => wrapRequest(serviceInstance.delete(`/tasks/${taskId}/relations/${kind}/${otherTaskId}`));
-const getTaskComments = async (taskId) => wrapRequest(serviceInstance.get(`/tasks/${taskId}/comments`));
-const createTaskComment = async (taskId, comment) => wrapRequest(serviceInstance.put(`/tasks/${taskId}/comments`, { comment }));
-const updateTaskComment = async (taskId, commentId, comment) => wrapRequest(serviceInstance.post(`/tasks/${taskId}/comments/${commentId}`, { comment }));
+const getTaskComments = async (taskId) => getList(`/tasks/${taskId}/comments`);
+const createTaskComment = async (taskId, comment) => wrapRequest(serviceInstance.post(`/tasks/${taskId}/comments`, { comment }));
+const updateTaskComment = async (taskId, commentId, comment) => wrapRequest(serviceInstance.patch(`/tasks/${taskId}/comments/${commentId}`, {
+    comment,
+}));
 const deleteTaskComment = async (taskId, commentId) => wrapRequest(serviceInstance.delete(`/tasks/${taskId}/comments/${commentId}`));
-const listTaskAttachments = async (taskId) => wrapRequest(serviceInstance.get(`/tasks/${taskId}/attachments`));
+const listTaskAttachments = async (taskId) => getList(`/tasks/${taskId}/attachments`);
 const getTaskAttachment = async (taskId, attachmentId) => wrapRequest(serviceInstance.get(`/tasks/${taskId}/attachments/${attachmentId}`));
 const deleteTaskAttachment = async (taskId, attachmentId) => wrapRequest(serviceInstance.delete(`/tasks/${taskId}/attachments/${attachmentId}`));
-// Upload one or more files as attachments. Multipart PUT — the only non-JSON
+// Upload one or more files as attachments. Multipart POST — the only non-JSON
 // write in the API (see uploadFiles in common.ts). Makes the otherwise
 // read-only attachment tools read-write.
 const uploadTaskAttachment = async (taskId, filePaths) => uploadFiles(`/tasks/${taskId}/attachments`, filePaths);
 // Assignees and labels each have dedicated attach/detach endpoints. Prefer
 // these over update_task's full-replace `assignees`/`labels` arrays: adding one
 // assignee shouldn't require re-sending (and risking clobbering) the rest.
-// Vikunja's verb convention: PUT to add, DELETE to remove. Not full-replace, so
-// no mergeAndPost needed.
-const addTaskAssignee = async (taskId, userId) => wrapRequest(serviceInstance.put(`/tasks/${taskId}/assignees`, { user_id: userId }));
+// v2 verb convention: POST to add, DELETE to remove.
+const addTaskAssignee = async (taskId, userId) => wrapRequest(serviceInstance.post(`/tasks/${taskId}/assignees`, { user_id: userId }));
 const removeTaskAssignee = async (taskId, userId) => wrapRequest(serviceInstance.delete(`/tasks/${taskId}/assignees/${userId}`));
-const addTaskLabel = async (taskId, labelId) => wrapRequest(serviceInstance.put(`/tasks/${taskId}/labels`, { label_id: labelId }));
+const addTaskLabel = async (taskId, labelId) => wrapRequest(serviceInstance.post(`/tasks/${taskId}/labels`, { label_id: labelId }));
 const removeTaskLabel = async (taskId, labelId) => wrapRequest(serviceInstance.delete(`/tasks/${taskId}/labels/${labelId}`));
 export default {
     listAllTasks,
@@ -168,6 +166,11 @@ export const toolDefinitions = [
                     enum: ['subtasks'],
                     description: 'If "subtasks", returns top-level tasks plus all their subtasks',
                 },
+                format: {
+                    type: 'string',
+                    enum: ['markdown', 'html'],
+                    description: 'Render task descriptions as Markdown or HTML. Default is stored HTML; "markdown" is easier to read.',
+                },
                 verbose: {
                     type: 'boolean',
                     description: 'Return full task objects including reactions, attachments, created_by, related_tasks. Default false (slimmed payload).',
@@ -205,6 +208,11 @@ export const toolDefinitions = [
                 filter_include_nulls: { type: 'boolean' },
                 filter_timezone: { type: 'string' },
                 expand: { type: 'string', enum: ['subtasks'] },
+                format: {
+                    type: 'string',
+                    enum: ['markdown', 'html'],
+                    description: 'Render task descriptions as Markdown or HTML (default HTML).',
+                },
                 verbose: {
                     type: 'boolean',
                     description: 'Return full task objects. Default false (slimmed).',
@@ -220,6 +228,11 @@ export const toolDefinitions = [
             type: 'object',
             properties: {
                 taskId: { type: 'integer', description: 'The ID of the task' },
+                format: {
+                    type: 'string',
+                    enum: ['markdown', 'html'],
+                    description: 'Render the description as Markdown or HTML (default HTML).',
+                },
                 verbose: {
                     type: 'boolean',
                     description: 'Return full task object. Default false.',
@@ -235,6 +248,11 @@ export const toolDefinitions = [
             type: 'object',
             properties: {
                 projectId: { type: 'integer', description: 'The ID of the project' },
+                format: {
+                    type: 'string',
+                    enum: ['markdown', 'html'],
+                    description: 'Interpret the task description as Markdown or HTML (default HTML).',
+                },
                 task: {
                     type: 'object',
                     properties: {
@@ -279,7 +297,7 @@ export const toolDefinitions = [
     },
     {
         name: 'update_task',
-        description: 'Update an existing task by ID. WARNING: this is a full REPLACE, not a PATCH — any field omitted from taskUpdates is reset to its zero value (priority → 0, done → false, description → empty). To preserve fields, either include them all in taskUpdates, or call get_task first and merge. Known quirk: done_at may also reset to 0001-01-01 on subsequent updates even when done:true is sent correctly (server-side timestamp bug, unrelated).',
+        description: 'Update an existing task by ID (partial update — only the fields you pass in taskUpdates change; omitted fields are left untouched). To change a task’s labels or assignees use the dedicated add/remove tools, not this. To move a task to another project use move_task.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -601,6 +619,8 @@ const extractListParams = (args) => {
         out.filter_timezone = args.filter_timezone;
     if (args.expand === 'subtasks')
         out.expand = 'subtasks';
+    if (args.format === 'markdown' || args.format === 'html')
+        out.format = args.format;
     return out;
 };
 export const handlers = {
@@ -673,13 +693,16 @@ export const handlers = {
         const args = (request.params.arguments || {});
         const taskId = args.taskId;
         const verbose = args.verbose === true;
+        const format = args.format === 'markdown' || args.format === 'html'
+            ? args.format
+            : undefined;
         if (typeof taskId !== 'number') {
             return {
                 isError: true,
                 content: [{ type: 'text', text: 'Invalid task ID' }],
             };
         }
-        const response = await getTask(taskId);
+        const response = await getTask(taskId, format);
         if (response.isError) {
             return {
                 isError: true,
@@ -697,7 +720,8 @@ export const handlers = {
         };
     },
     create_task: async (request) => {
-        const { projectId, task: _task } = request.params.arguments || {};
+        const { projectId, task: _task, format: _format, } = request.params.arguments || {};
+        const format = _format === 'markdown' || _format === 'html' ? _format : undefined;
         if (typeof projectId !== 'number') {
             return {
                 isError: true,
@@ -706,7 +730,7 @@ export const handlers = {
         }
         try {
             const validatedTask = TaskInputSchema.parse(_task);
-            const response = await createTask(projectId, validatedTask);
+            const response = await createTask(projectId, validatedTask, format);
             if (response.isError) {
                 return {
                     isError: true,

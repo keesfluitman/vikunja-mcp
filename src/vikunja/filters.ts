@@ -1,8 +1,6 @@
 import { z } from 'zod';
-import { serviceInstance, wrapRequest, mergeAndPost } from './common.js';
+import { serviceInstance, wrapRequest, getList, patch } from './common.js';
 import type { ToolHandler } from './common.js';
-
-const SAVED_FILTER_UPDATE_STRIP_KEYS = ['created', 'updated', 'owner'] as const;
 
 // A saved filter wraps the same query params accepted by GET /tasks.
 const FilterParamsSchema = z.object({
@@ -37,11 +35,11 @@ const projectIdToFilterId = (projectId: number): number | null =>
   projectId < -1 ? -projectId - 1 : null;
 
 const listSavedFilters = async () => {
-  const response = await wrapRequest(
-    serviceInstance.get<
-      Array<{ id: number; title: string; description?: string }>
-    >('/projects', { params: { per_page: 50 } }),
-  );
+  const response = await getList<{
+    id: number;
+    title: string;
+    description?: string;
+  }>('/projects', { params: { per_page: 50 } });
   if (response.isError) return response;
   const filters = (response.data ?? [])
     .map(p => ({ ...p, filter_id: projectIdToFilterId(p.id) }))
@@ -53,17 +51,12 @@ const getSavedFilter = async (filterId: number) =>
   wrapRequest(serviceInstance.get<SavedFilter>(`/filters/${filterId}`));
 
 const createSavedFilter = async (data: SavedFilterInput) =>
-  wrapRequest(serviceInstance.put<SavedFilter>('/filters', data));
+  wrapRequest(serviceInstance.post<SavedFilter>('/filters', data));
 
 const updateSavedFilter = async (
   filterId: number,
   data: Partial<SavedFilterInput>,
-) =>
-  mergeAndPost<SavedFilter>(
-    `/filters/${filterId}`,
-    data as Record<string, unknown>,
-    SAVED_FILTER_UPDATE_STRIP_KEYS,
-  );
+) => patch<SavedFilter>(`/filters/${filterId}`, data as Record<string, unknown>);
 
 const deleteSavedFilter = async (filterId: number) =>
   wrapRequest(serviceInstance.delete(`/filters/${filterId}`));

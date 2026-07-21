@@ -1,10 +1,10 @@
-import { serviceInstance, wrapRequest } from './common.js';
+import { serviceInstance, wrapRequest, getList } from './common.js';
 // Vikunja's /users endpoint requires a non-empty `s` param and matches the
 // FULL username only (not partial, not email). This is a server-side quirk;
-// we pass the query through verbatim and surface a helpful message on null.
-const searchUsers = async (search) => wrapRequest(serviceInstance.get('/users', {
-    params: { s: search },
-}));
+// we pass the query through verbatim. v2 returns a pagination envelope, so an
+// empty result is an empty items array.
+const searchUsers = async (search) => getList('/users', { params: { s: search } });
+// GET /user returns the current user directly (UserInfoBody), not an envelope.
 const getCurrentUser = async () => wrapRequest(serviceInstance.get('/user'));
 export default { searchUsers, getCurrentUser };
 export const toolDefinitions = [

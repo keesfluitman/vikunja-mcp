@@ -1,9 +1,7 @@
 import { z } from 'zod';
-import { serviceInstance, wrapRequest, mergeAndPost } from './common.js';
+import { serviceInstance, wrapRequest, getList, patch } from './common.js';
 import type { ToolHandler } from './common.js';
 import { HexColorSchema, type Label } from './schema.js';
-
-const LABEL_UPDATE_STRIP_KEYS = ['created', 'updated', 'created_by'] as const;
 
 const LabelInputSchema = z.object({
   title: z.string().optional(),
@@ -14,27 +12,19 @@ const LabelInputSchema = z.object({
 export type LabelInput = z.infer<typeof LabelInputSchema>;
 
 const listLabels = async (page = 1, perPage = 50, search?: string) =>
-  wrapRequest(
-    serviceInstance.get<Array<Label>>('/labels', {
-      params: { page, per_page: perPage, ...(search ? { s: search } : {}) },
-    }),
-  );
+  getList<Label>('/labels', {
+    params: { page, per_page: perPage, ...(search ? { s: search } : {}) },
+  });
 
 const getLabel = async (labelId: number) =>
   wrapRequest(serviceInstance.get<Label>(`/labels/${labelId}`));
 
 const createLabel = async (label: LabelInput) =>
-  wrapRequest(serviceInstance.put<Label>('/labels', label));
+  wrapRequest(serviceInstance.post<Label>('/labels', label));
 
-// Swagger lists PUT for /labels/{id} but the server returns 405; the actual
-// update method is POST. POST is full-replace, so fetch-then-merge to keep the
-// fields the caller didn't pass.
+// v2 PATCH partial-updates the label; omitted fields are preserved server-side.
 const updateLabel = async (labelId: number, label: Partial<LabelInput>) =>
-  mergeAndPost<Label>(
-    `/labels/${labelId}`,
-    label as Record<string, unknown>,
-    LABEL_UPDATE_STRIP_KEYS,
-  );
+  patch<Label>(`/labels/${labelId}`, label as Record<string, unknown>);
 
 const deleteLabel = async (labelId: number) =>
   wrapRequest(serviceInstance.delete(`/labels/${labelId}`));

@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { serviceInstance, wrapRequest, mergeAndPost, slimList } from './common.js';
+import {
+  serviceInstance,
+  wrapRequest,
+  getList,
+  patch,
+  slimList,
+} from './common.js';
 import type { ToolHandler } from './common.js';
 
 // Kanban in Vikunja lives under project VIEWS, not the project directly. A
@@ -74,32 +80,25 @@ const BucketInputSchema = z.object({
 export type BucketInput = z.infer<typeof BucketInputSchema>;
 
 const listProjectViews = async (projectId: number) =>
-  wrapRequest(
-    serviceInstance.get<Array<ProjectView>>(`/projects/${projectId}/views`),
-  );
+  getList<ProjectView>(`/projects/${projectId}/views`);
 
 const listBuckets = async (projectId: number, viewId: number) =>
-  wrapRequest(
-    serviceInstance.get<Array<Bucket>>(
-      `/projects/${projectId}/views/${viewId}/buckets`,
-    ),
-  );
+  getList<Bucket>(`/projects/${projectId}/views/${viewId}/buckets`);
 
-// GET /projects/{p}/views/{v}/tasks is the board endpoint the Vikunja web UI
-// uses: it returns the view's buckets, each with a nested `tasks[]` array. This
-// is the ONLY way to read which tasks sit in which kanban column — the plain
-// task lists come back with bucket_id: 0 because membership is per-view, and
-// the /buckets endpoint returns no tasks. `per_page` bounds tasks per bucket.
+// The board endpoint — buckets each with a nested `tasks[]` array — is the ONLY
+// way to read which tasks sit in which kanban column (plain task lists report
+// bucket_id: 0 because membership is per-view). In v2 this moved: the board is
+// GET /views/{v}/buckets/tasks (returns { items: Bucket[], total }, unwrapped by
+// getList), while /views/{v}/tasks now returns a flat paginated task list.
+// `per_page` bounds tasks per bucket.
 const listViewTasks = async (
   projectId: number,
   viewId: number,
   perPage = 200,
 ) =>
-  wrapRequest(
-    serviceInstance.get<Array<ViewBucketWithTasks>>(
-      `/projects/${projectId}/views/${viewId}/tasks`,
-      { params: { per_page: perPage } },
-    ),
+  getList<ViewBucketWithTasks>(
+    `/projects/${projectId}/views/${viewId}/buckets/tasks`,
+    { params: { per_page: perPage } },
   );
 
 const createBucket = async (
@@ -108,23 +107,24 @@ const createBucket = async (
   bucket: BucketInput,
 ) =>
   wrapRequest(
-    serviceInstance.put<Bucket>(
+    serviceInstance.post<Bucket>(
       `/projects/${projectId}/views/${viewId}/buckets`,
       bucket,
     ),
   );
 
-// POST /projects/{p}/views/{v}/buckets/{b} is full-replace like the other
-// Vikunja update endpoints, and there is no GET-single-bucket route — so we
-// list the view's buckets, find this one, overlay the caller's partial, and
-// POST the merged object. Omitting `position` here would otherwise reset it to
-// 0 and silently reorder the board.
+// PUT /projects/{p}/views/{v}/buckets/{b} is full-replace (v2 exposes no PATCH
+// for buckets), and there is no GET-single-bucket route — so we list the view's
+// buckets, find this one, overlay the caller's partial, and PUT the merged
+// object. Omitting `position` here would otherwise reset it to 0 and silently
+// reorder the board.
 const BUCKET_UPDATE_STRIP_KEYS = [
   'created',
   'updated',
   'created_by',
   'count',
   'tasks',
+  '$schema',
 ] as const;
 
 const updateBucket = async (
@@ -142,10 +142,17 @@ const updateBucket = async (
       error: `Bucket ${bucketId} not found in project ${projectId} view ${viewId}`,
     };
   }
-  const merged: Record<string, unknown> = { ...existing, ...partial };
+  // Overlay only DEFINED fields — zod keeps optional keys the caller omitted as
+  // explicit `undefined`, which would otherwise clobber the existing value
+  // (e.g. reset a WIP limit to 0) once JSON.stringify drops the undefined on a
+  // full-replace PUT.
+  const overlay = Object.fromEntries(
+    Object.entries(partial).filter(([, v]) => v !== undefined),
+  );
+  const merged: Record<string, unknown> = { ...existing, ...overlay };
   for (const k of BUCKET_UPDATE_STRIP_KEYS) delete merged[k];
   return wrapRequest(
-    serviceInstance.post<Bucket>(
+    serviceInstance.put<Bucket>(
       `/projects/${projectId}/views/${viewId}/buckets/${bucketId}`,
       merged,
     ),
@@ -170,20 +177,16 @@ const moveTaskToBucket = async (
   taskId: number,
 ) =>
   wrapRequest(
-    serviceInstance.post(
+    serviceInstance.put(
       `/projects/${projectId}/views/${viewId}/buckets/${bucketId}/tasks`,
       { task_id: taskId, bucket_id: bucketId, project_view_id: viewId },
     ),
   );
 
-// View CRUD. v1 follows its usual convention here (create = PUT, update = POST)
-// — NOT the inverted verbs the v2/Huma API uses. A single-view GET exists, so
-// update routes through mergeAndPost to preserve the view's filter object and
-// bucket config when the caller only changes one field. `filter` is a
-// TaskCollection object ({ filter: "<DSL>", filter_include_nulls, ... }), and
-// `bucket_configuration` an array — both passed through as-is.
-const VIEW_UPDATE_STRIP_KEYS = ['created', 'updated'] as const;
-
+// View CRUD (v2): create = POST, update = PATCH (partial, so the view's filter
+// object and bucket config are preserved without a fetch-then-merge). `filter`
+// is a TaskCollection object ({ filter: "<DSL>", filter_include_nulls, ... }),
+// and `bucket_configuration` an array — both passed through as-is.
 const ViewInputSchema = z.object({
   title: z.string().optional(),
   view_kind: z.enum(['list', 'gantt', 'table', 'kanban']).optional(),
@@ -199,7 +202,7 @@ export type ViewInput = z.infer<typeof ViewInputSchema>;
 
 const createView = async (projectId: number, view: ViewInput) =>
   wrapRequest(
-    serviceInstance.put<ProjectView>(`/projects/${projectId}/views`, view),
+    serviceInstance.post<ProjectView>(`/projects/${projectId}/views`, view),
   );
 
 const updateView = async (
@@ -207,10 +210,9 @@ const updateView = async (
   viewId: number,
   partial: ViewInput,
 ) =>
-  mergeAndPost<ProjectView>(
+  patch<ProjectView>(
     `/projects/${projectId}/views/${viewId}`,
     partial as Record<string, unknown>,
-    VIEW_UPDATE_STRIP_KEYS,
   );
 
 const deleteView = async (projectId: number, viewId: number) =>
@@ -543,13 +545,41 @@ export const handlers: Record<string, ToolHandler> = {
       perPage,
     );
     if (response.isError) {
+      // Known Vikunja 2.4.0 server bug: the board endpoint
+      // (GET .../buckets/tasks) — the only route that reports which task sits
+      // in which bucket — rejects API-token auth with 401, though every other
+      // endpoint accepts it. There's no token-accessible alternative for
+      // per-bucket task membership, so fall back to the column metadata (which
+      // works) and say so, rather than failing outright.
+      const meta = await listBuckets(
+        args.projectId as number,
+        args.viewId as number,
+      );
+      if (meta.isError) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: `Error fetching kanban board: ${response.error}`,
+            },
+          ],
+        };
+      }
+      const cols = (meta.data ?? []).map(b => {
+        const out: Record<string, unknown> = {};
+        for (const k of BOARD_BUCKET_KEEP_KEYS) {
+          if (k in b) out[k] = (b as Record<string, unknown>)[k];
+        }
+        return out;
+      });
       return {
-        isError: true,
         content: [
           {
             type: 'text',
-            text: `Error fetching kanban board: ${response.error}`,
+            text: `Board has ${cols.length} column(s). NOTE: task-to-column membership is unavailable — the Vikunja server rejected the board endpoint with API-token auth (a known v2.4.0 bug: ${response.error}). Returning column metadata only; use list_project_tasks to see the tasks.`,
           },
+          { type: 'text', text: JSON.stringify(cols, null, 2) },
         ],
       };
     }

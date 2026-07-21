@@ -1,4 +1,4 @@
-import { serviceInstance, wrapRequest } from './common.js';
+import { serviceInstance, wrapRequest, getList } from './common.js';
 import type { ToolHandler, ErrorResponse } from './common.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
@@ -7,9 +7,9 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 //   • teams  (/projects/{id}/teams)
 //   • link shares (/projects/{id}/shares)
 // The access level field is `permission` (0 read-only, 1 read/write, 2 admin) —
-// verified against our v2.3.0 instance's /api/v1/docs.json. NOT `right`. Add is
-// PUT, update is POST, remove is DELETE (standard v1). These are dedicated
-// share endpoints, not full-replace resources, so no mergeAndPost is needed.
+// unchanged in v2 (ProjectUser/TeamProject/LinkSharing all carry it). v2 verbs:
+// add = POST, update-permission = PUT (full-replace; sending just { permission }
+// is enough since the row is identified by the path), remove = DELETE.
 
 const PERMISSION_DESC =
   'Access level: 0 = read-only, 1 = read/write, 2 = admin (default 0)';
@@ -37,14 +37,14 @@ const validPermission = (v: unknown): v is number =>
 
 // --- project users ---------------------------------------------------------
 const listProjectUsers = async (projectId: number) =>
-  wrapRequest(serviceInstance.get(`/projects/${projectId}/users`));
+  getList(`/projects/${projectId}/users`);
 const addProjectUser = async (
   projectId: number,
   username: string,
   permission = 0,
 ) =>
   wrapRequest(
-    serviceInstance.put(`/projects/${projectId}/users`, {
+    serviceInstance.post(`/projects/${projectId}/users`, {
       username,
       permission,
     }),
@@ -55,7 +55,7 @@ const updateProjectUser = async (
   permission: number,
 ) =>
   wrapRequest(
-    serviceInstance.post(`/projects/${projectId}/users/${userId}`, {
+    serviceInstance.put(`/projects/${projectId}/users/${userId}`, {
       permission,
     }),
   );
@@ -64,14 +64,14 @@ const removeProjectUser = async (projectId: number, userId: number) =>
 
 // --- project teams ---------------------------------------------------------
 const listProjectTeams = async (projectId: number) =>
-  wrapRequest(serviceInstance.get(`/projects/${projectId}/teams`));
+  getList(`/projects/${projectId}/teams`);
 const addProjectTeam = async (
   projectId: number,
   teamId: number,
   permission = 0,
 ) =>
   wrapRequest(
-    serviceInstance.put(`/projects/${projectId}/teams`, {
+    serviceInstance.post(`/projects/${projectId}/teams`, {
       team_id: teamId,
       permission,
     }),
@@ -82,7 +82,7 @@ const updateProjectTeam = async (
   permission: number,
 ) =>
   wrapRequest(
-    serviceInstance.post(`/projects/${projectId}/teams/${teamId}`, {
+    serviceInstance.put(`/projects/${projectId}/teams/${teamId}`, {
       permission,
     }),
   );
@@ -97,9 +97,9 @@ type LinkShareInput = {
   name?: string;
 };
 const listProjectShares = async (projectId: number) =>
-  wrapRequest(serviceInstance.get(`/projects/${projectId}/shares`));
+  getList(`/projects/${projectId}/shares`);
 const createProjectShare = async (projectId: number, share: LinkShareInput) =>
-  wrapRequest(serviceInstance.put(`/projects/${projectId}/shares`, share));
+  wrapRequest(serviceInstance.post(`/projects/${projectId}/shares`, share));
 const deleteProjectShare = async (projectId: number, shareId: number) =>
   wrapRequest(
     serviceInstance.delete(`/projects/${projectId}/shares/${shareId}`),
